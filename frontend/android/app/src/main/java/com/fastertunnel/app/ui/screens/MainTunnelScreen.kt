@@ -217,15 +217,15 @@ fun MainTunnelScreen(
                     Icon(
                         imageVector = Icons.Default.Lock,
                         contentDescription = null,
-                        tint = if (viewModel.prefs.isLoggedIn) CyanPrimary else AmberAccent,
+                        tint = CyanPrimary,
                         modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = if (viewModel.prefs.isLoggedIn)
+                        text = if (viewModel.prefs.isLoggedIn && viewModel.prefs.username.isNotBlank())
                             "Usuario: ${viewModel.prefs.username}"
                         else
-                            "Sesión no iniciada",
+                            "Modo Debug: Acceso Libre (Sin Login)",
                         color = TextWhite,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium

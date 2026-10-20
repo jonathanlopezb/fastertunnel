@@ -59,7 +59,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _loginError = MutableStateFlow<String?>(null)
     val loginError: StateFlow<String?> = _loginError.asStateFlow()
 
-    private val _showLoginDialog = MutableStateFlow(!prefs.isLoggedIn)
+    // Omitido para modo debug: No mostrar diálogo de inicio de sesión automáticamente
+    private val _showLoginDialog = MutableStateFlow(false)
     val showLoginDialog: StateFlow<Boolean> = _showLoginDialog.asStateFlow()
 
     init {
@@ -176,9 +177,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun dismissLoginDialog() {
-        if (prefs.isLoggedIn) {
-            _showLoginDialog.value = false
-        }
+        _showLoginDialog.value = false
     }
 
     fun openLoginDialog() {
@@ -273,11 +272,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun startTunnel(context: Context) {
+        // Modo Debug: Inicio de sesión temporalmente deshabilitado para pruebas inmediatas
+        // Cuando se reactive la autenticación comercial, se descomentará el bloque inferior:
+        /*
         if (!prefs.isLoggedIn || prefs.token.isNullOrEmpty()) {
             _showLoginDialog.value = true
             TunnelLogManager.log("Por favor inicia sesión antes de conectar", isError = true)
             return
         }
+        */
 
         val server = _selectedServer.value ?: _servers.value.firstOrNull() ?: ServerNodeDto(
             id = 1,
