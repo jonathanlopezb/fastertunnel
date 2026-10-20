@@ -31,6 +31,16 @@
             </intent-filter>
         </activity>
 
+        <!-- Receptor de acciones rápidas de la notificación (Conectar / Desconectar) -->
+        <receiver
+            android:name=".core.vpn.VpnActionReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.fastertunnel.app.ACTION_NOTIFICATION_CONNECT" />
+                <action android:name="com.fastertunnel.app.ACTION_NOTIFICATION_DISCONNECT" />
+            </intent-filter>
+        </receiver>
+
         <!-- Servicio de VPN Foreground persistente -->
         <service
             android:name=".core.vpn.FasterVpnService"

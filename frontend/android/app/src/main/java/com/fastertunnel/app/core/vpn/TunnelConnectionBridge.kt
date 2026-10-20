@@ -14,6 +14,8 @@ import java.io.InputStreamReader
 import java.io.OutputStream
 import java.net.InetSocketAddress
 import java.net.Socket
+import java.nio.ByteBuffer
+import java.nio.channels.DatagramChannel
 import javax.net.ssl.SSLSocket
 
 class TunnelConnectionBridge(
@@ -26,13 +28,22 @@ class TunnelConnectionBridge(
 ) {
 
     private var activeSocket: Socket? = null
+    private var activeDatagramChannel: DatagramChannel? = null
     private var isRunning = false
 
     suspend fun execute() = withContext(Dispatchers.IO) {
         isRunning = true
-        val effectiveSni = sni?.ifBlank { "web.whatsapp.net" } ?: "web.whatsapp.net"
+        val effectiveSni = sni?.ifBlank { "portalrecargas.claro.com.co" } ?: "portalrecargas.claro.com.co"
 
         try {
+            // Manejo de protocolo FastDNS / UDP Custom (Bypass para Claro y Movistar sin saldo)
+            if (transport == "FAST_DNS" || transport == "DNS" || transport == "UDP_CUSTOM" || transport == "UDP") {
+                val targetPort = if (port in listOf(53, 7300, 80)) port else 53
+                TunnelLogManager.log("[FastDNS] Conectando a $host:$targetPort vía UDP (Bypass Claro/Movistar)...", isHighlight = true)
+                bridgeTunAndUdp(vpnInterface.fileDescriptor, host, targetPort)
+                return@withContext
+            }
+
             TunnelLogManager.log("[DNS] Resolviendo gateway: $host...", isHighlight = true)
 
             val socket: Socket = when (transport) {
@@ -98,6 +109,56 @@ class TunnelConnectionBridge(
         }
     }
 
+    private fun bridgeTunAndUdp(tunFd: FileDescriptor, host: String, targetPort: Int) {
+        val channel = DatagramChannel.open()
+        channel.configureBlocking(true)
+        channel.connect(InetSocketAddress(host, targetPort))
+        activeDatagramChannel = channel
+
+        TunnelLogManager.log("[FastDNS] Canal UDP $targetPort conectado exitosamente", isHighlight = true)
+        TunnelLogManager.updateStatus(TunnelStatus.CONNECTED)
+
+        val tunIn = FileInputStream(tunFd)
+        val tunOut = FileOutputStream(tunFd)
+
+        val uplinkThread = Thread {
+            val buffer = ByteBuffer.allocate(32768)
+            val readBuf = ByteArray(32768)
+            try {
+                while (isRunning) {
+                    val read = tunIn.read(readBuf)
+                    if (read > 0) {
+                        buffer.clear()
+                        buffer.put(readBuf, 0, read)
+                        buffer.flip()
+                        channel.write(buffer)
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+
+        val downlinkThread = Thread {
+            val buffer = ByteBuffer.allocate(32768)
+            try {
+                while (isRunning) {
+                    buffer.clear()
+                    val read = channel.read(buffer)
+                    if (read > 0) {
+                        tunOut.write(buffer.array(), 0, read)
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+
+        uplinkThread.isDaemon = true
+        downlinkThread.isDaemon = true
+        uplinkThread.start()
+        downlinkThread.start()
+
+        uplinkThread.join()
+        downlinkThread.join()
+    }
+
     private fun bridgeTunAndSocket(
         tunFd: FileDescriptor,
         socketIn: InputStream,
@@ -156,6 +217,10 @@ class TunnelConnectionBridge(
         try {
             activeSocket?.close()
         } catch (_: Exception) {}
+        try {
+            activeDatagramChannel?.close()
+        } catch (_: Exception) {}
         activeSocket = null
+        activeDatagramChannel = null
     }
 }

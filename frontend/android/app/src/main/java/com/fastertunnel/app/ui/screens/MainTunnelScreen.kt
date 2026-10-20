@@ -432,7 +432,49 @@ fun MainTunnelScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // ── Pestañas de Modos estilo Hamara Tunnel (UDP | FastDNS | SuperDNS | DNSLite) ───
+            var currentMode by remember { mutableStateOf(viewModel.prefs.selectedMode) }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(DarkSurfaceVariant)
+                    .padding(4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                listOf("UDP", "FastDNS", "SuperDNS", "DNSLite").forEach { mode ->
+                    val isSelected = currentMode == mode
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (isSelected) CyanPrimary.copy(alpha = 0.25f) else Color.Transparent)
+                            .border(
+                                width = if (isSelected) 1.dp else 0.dp,
+                                color = if (isSelected) CyanPrimary else Color.Transparent,
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                            .clickable {
+                                currentMode = mode
+                                viewModel.onModeSelected(mode)
+                            }
+                            .padding(vertical = 8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = mode,
+                            color = if (isSelected) CyanPrimary else TextMuted,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
 
             // ── Botón Circular Principal de Conexión (Animado) ────────────────
             val isConnected = status == TunnelStatus.CONNECTED

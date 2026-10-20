@@ -216,6 +216,36 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         TunnelLogManager.log("SNI personalizado actualizado: $trimmed")
     }
 
+    fun onModeSelected(mode: String) {
+        prefs.selectedMode = mode
+        TunnelLogManager.log("Modo seleccionado: $mode", isHighlight = true)
+        val defaultTweaks = _tweaks.value
+        val detected = _carrierInfo.value
+
+        when (mode) {
+            "FastDNS", "SuperDNS", "DNSLite" -> {
+                val targetTweak = defaultTweaks.firstOrNull {
+                    if (detected.isClaro) it.tweakId == "claro_fastdns_udp"
+                    else it.tweakId == "movistar_fastdns_udp"
+                } ?: defaultTweaks.firstOrNull { it.transport == "FAST_DNS" }
+                targetTweak?.let {
+                    _selectedTweak.value = it
+                    prefs.selectedTweakId = it.tweakId
+                    prefs.selectedTransport = "FAST_DNS"
+                }
+            }
+            "UDP" -> {
+                val targetTweak = defaultTweaks.firstOrNull { it.transport == "UDP_CUSTOM" }
+                    ?: defaultTweaks.firstOrNull()
+                targetTweak?.let {
+                    _selectedTweak.value = it
+                    prefs.selectedTweakId = it.tweakId
+                    prefs.selectedTransport = "UDP_CUSTOM"
+                }
+            }
+        }
+    }
+
     private fun startTunnel(context: Context) {
         if (!prefs.isLoggedIn || prefs.token.isNullOrEmpty()) {
             _showLoginDialog.value = true
@@ -225,35 +255,46 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         val server = _selectedServer.value ?: _servers.value.firstOrNull() ?: ServerNodeDto(
             id = 1,
-            nodeId = "gw-us-01",
-            name = "Estados Unidos #1 (Gaming & UDP)",
+            nodeId = "gw-aws-ohio-01",
+            name = "🔥 AWS Ohio #1 (FastDNS / WS)",
             countryCode = "US",
             flagEmoji = "🇺🇸",
-            host = "us1.fastertunnel.net",
-            port = 443,
-            transport = "WSS",
-            sniHost = "web.whatsapp.net",
+            host = "3.142.187.253",
+            port = 53,
+            transport = "FAST_DNS",
+            sniHost = "portalrecargas.claro.com.co",
             isActive = true,
             isPremium = false,
-            pingMs = 45,
-            maxUsers = 100,
-            currentUsers = 12
+            pingMs = 38,
+            maxUsers = 500,
+            currentUsers = 1
         )
 
         val tweak = _selectedTweak.value
+        val effectiveTransport = tweak?.transport ?: server.transport
+        val effectivePort = if (effectiveTransport == "FAST_DNS") 53 else server.port
         val effectiveSni = tweak?.sniSpoof?.ifBlank { _customSni.value } ?: _customSni.value
         val payload = tweak?.payloadTemplate
 
+        // Persistir en preferencias para el botón rápido de la notificación
+        prefs.selectedServerHost = server.host
+        prefs.selectedServerPort = effectivePort
+        prefs.selectedServerName = server.name
+        prefs.selectedTransport = effectiveTransport
+
         TunnelLogManager.log("SIM Operador: ${_carrierInfo.value.name} (${_carrierInfo.value.countryIso})")
-        TunnelLogManager.log("Tweak activo: ${tweak?.label ?: "Movistar WSS"}")
-        TunnelLogManager.log("SNI Inyectado: $effectiveSni", isHighlight = true)
+        TunnelLogManager.log("Modo / Tweak: ${tweak?.label ?: effectiveTransport}")
+        TunnelLogManager.log("Transporte: $effectiveTransport en puerto $effectivePort")
+        if (!effectiveSni.isNullOrBlank()) {
+            TunnelLogManager.log("SNI Inyectado: $effectiveSni", isHighlight = true)
+        }
 
         FasterVpnService.start(
             context = context,
             host = server.host,
-            port = server.port,
+            port = effectivePort,
             serverName = server.name,
-            transport = server.transport,
+            transport = effectiveTransport,
             sni = effectiveSni,
             payload = payload
         )
@@ -299,51 +340,51 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val defaultServers = listOf(
             ServerNodeDto(
                 id = 1,
-                nodeId = "gw-us-01",
-                name = "Estados Unidos #1 (Gaming & UDP)",
+                nodeId = "gw-aws-ohio-01",
+                name = "🔥 AWS Ohio #1 (FastDNS / UDP 53)",
                 countryCode = "US",
                 flagEmoji = "🇺🇸",
-                host = "us1.fastertunnel.net",
-                port = 443,
-                transport = "UDP_CUSTOM",
-                sniHost = null,
+                host = "3.142.187.253",
+                port = 53,
+                transport = "FAST_DNS",
+                sniHost = "portalrecargas.claro.com.co",
                 isActive = true,
                 isPremium = false,
-                pingMs = 42,
-                maxUsers = 100,
-                currentUsers = 18
+                pingMs = 38,
+                maxUsers = 500,
+                currentUsers = 1
             ),
             ServerNodeDto(
                 id = 2,
-                nodeId = "gw-de-02",
-                name = "Alemania #2 (Stealth WSS)",
-                countryCode = "DE",
-                flagEmoji = "🇩🇪",
-                host = "de2.fastertunnel.net",
-                port = 443,
+                nodeId = "gw-aws-ohio-02",
+                name = "AWS Ohio #2 (WSS / HTTP 80)",
+                countryCode = "US",
+                flagEmoji = "🇺🇸",
+                host = "3.142.187.253",
+                port = 80,
                 transport = "WSS",
-                sniHost = "www.cloudflare.com",
+                sniHost = "web.whatsapp.net",
                 isActive = true,
                 isPremium = false,
-                pingMs = 115,
-                maxUsers = 100,
-                currentUsers = 25
+                pingMs = 42,
+                maxUsers = 500,
+                currentUsers = 1
             ),
             ServerNodeDto(
                 id = 3,
-                nodeId = "gw-br-03",
-                name = "Brasil #3 (Baja Latencia Latam)",
-                countryCode = "BR",
-                flagEmoji = "🇧🇷",
-                host = "br3.fastertunnel.net",
-                port = 443,
+                nodeId = "gw-aws-ohio-03",
+                name = "AWS Ohio #3 (Dropbear SSH 2222)",
+                countryCode = "US",
+                flagEmoji = "🇺🇸",
+                host = "3.142.187.253",
+                port = 2222,
                 transport = "SSH",
                 sniHost = null,
                 isActive = true,
                 isPremium = true,
-                pingMs = 58,
-                maxUsers = 100,
-                currentUsers = 34
+                pingMs = 45,
+                maxUsers = 500,
+                currentUsers = 1
             )
         )
         _servers.value = defaultServers
@@ -352,6 +393,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val defaultTweaks = listOf(
             TweakDto(
                 id = 1,
+                tweakId = "claro_fastdns_udp",
+                label = "Claro Colombia FastDNS (UDP 53 - Sin Saldo)",
+                carrier = "Claro",
+                country = "CO",
+                sniSpoof = "portalrecargas.claro.com.co",
+                payloadTemplate = null,
+                transport = "FAST_DNS",
+                recommendedGateway = "gw-aws-ohio-01",
+                isActive = true
+            ),
+            TweakDto(
+                id = 2,
+                tweakId = "movistar_fastdns_udp",
+                label = "Movistar FastDNS (UDP 53 - Sin Saldo)",
+                carrier = "Movistar",
+                country = "CO",
+                sniSpoof = "recargas.movistar.com.co",
+                payloadTemplate = null,
+                transport = "FAST_DNS",
+                recommendedGateway = "gw-aws-ohio-01",
+                isActive = true
+            ),
+            TweakDto(
+                id = 3,
                 tweakId = "movistar_whatsapp_sni",
                 label = "Movistar WhatsApp Ilimitado (Auto-Inyección)",
                 carrier = "Movistar",
@@ -359,59 +424,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 sniSpoof = "web.whatsapp.net",
                 payloadTemplate = "GET / HTTP/1.1\r\nHost: [sni]\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nUser-Agent: [ua]\r\n\r\n",
                 transport = "WSS",
-                recommendedGateway = "gw-us-01",
-                isActive = true
-            ),
-            TweakDto(
-                id = 2,
-                tweakId = "movistar_portal_ssl",
-                label = "Movistar Portal & App (SSL Spoof)",
-                carrier = "Movistar",
-                country = "LATAM",
-                sniSpoof = "portal.movistar.com.pe",
-                payloadTemplate = "CONNECT [host_port] HTTP/1.1\r\nHost: [sni]\r\nX-Online-Host: [sni]\r\nConnection: Keep-Alive\r\n\r\n",
-                transport = "SSL",
-                recommendedGateway = "gw-de-02",
-                isActive = true
-            ),
-            TweakDto(
-                id = 3,
-                tweakId = "movistar_colombia_ws",
-                label = "Movistar Colombia (Recargas / WSS)",
-                carrier = "Movistar",
-                country = "CO",
-                sniSpoof = "recargas.movistar.com.co",
-                payloadTemplate = "GET / HTTP/1.1\r\nHost: [sni]\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n",
-                transport = "WSS",
-                recommendedGateway = "gw-us-01",
+                recommendedGateway = "gw-aws-ohio-02",
                 isActive = true
             ),
             TweakDto(
                 id = 4,
-                tweakId = "movistar_dns_udp",
-                label = "Movistar DNS UDP 53 (Bypass Filtro)",
-                carrier = "Movistar",
-                country = "LATAM",
-                sniSpoof = null,
-                payloadTemplate = null,
-                transport = "UDP_CUSTOM",
-                recommendedGateway = "gw-us-01",
+                tweakId = "claro_portal_ssl",
+                label = "Claro Colombia Portal (SSL Spoof)",
+                carrier = "Claro",
+                country = "CO",
+                sniSpoof = "portalrecargas.claro.com.co",
+                payloadTemplate = "CONNECT [host_port] HTTP/1.1\r\nHost: [sni]\r\nConnection: Keep-Alive\r\n\r\n",
+                transport = "SSL",
+                recommendedGateway = "gw-aws-ohio-02",
                 isActive = true
             ),
             TweakDto(
                 id = 5,
-                tweakId = "claro_latam_ws",
-                label = "Claro Redes Sociales (Payload WSS)",
-                carrier = "Claro",
-                country = "LATAM",
-                sniSpoof = "m.facebook.com",
-                payloadTemplate = "CONNECT [host_port] HTTP/1.1\r\nHost: [sni]\r\nUpgrade: websocket\r\n\r\n",
-                transport = "WSS",
-                recommendedGateway = "gw-br-03",
-                isActive = true
-            ),
-            TweakDto(
-                id = 6,
                 tweakId = "ssl_sni_custom",
                 label = "Modo SNI Personalizado (Manual)",
                 carrier = "Cualquiera",
@@ -419,21 +448,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 sniSpoof = _customSni.value,
                 payloadTemplate = "CONNECT [host_port] HTTP/1.1\r\nHost: [sni]\r\nConnection: Keep-Alive\r\n\r\n",
                 transport = "SSL",
-                recommendedGateway = "gw-us-01",
+                recommendedGateway = "gw-aws-ohio-01",
                 isActive = true
             )
         )
         _tweaks.value = defaultTweaks
 
-        // Si la SIM detectada es Movistar, auto-seleccionar el tweak de Movistar WhatsApp
+        // Detección automática por operador SIM
         val detected = _carrierInfo.value
-        val autoSelectedTweak = if (detected.isMovistar) {
-            defaultTweaks.first { it.tweakId == "movistar_whatsapp_sni" }
-        } else {
-            defaultTweaks.firstOrNull { it.tweakId == prefs.selectedTweakId } ?: defaultTweaks.first()
+        val autoSelectedTweak = when {
+            detected.isClaro -> defaultTweaks.first { it.tweakId == "claro_fastdns_udp" }
+            detected.isMovistar -> defaultTweaks.first { it.tweakId == "movistar_fastdns_udp" }
+            else -> defaultTweaks.firstOrNull { it.tweakId == prefs.selectedTweakId } ?: defaultTweaks.first()
         }
         _selectedTweak.value = autoSelectedTweak
         prefs.selectedTweakId = autoSelectedTweak.tweakId
-        _selectedTweak.value = defaultTweaks.first()
     }
 }

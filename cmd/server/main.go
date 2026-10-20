@@ -166,6 +166,17 @@ func seedDefaultServersAndTweaks() {
 	if tweakCount == 0 {
 		tweaks := []models.Tweak{
 			{
+				TweakID:         "claro_fastdns_udp",
+				Label:           "Claro Colombia FastDNS (UDP 53 - Sin Saldo)",
+				Carrier:         "Claro",
+				Country:         "CO",
+				SNISpoof:        "portalrecargas.claro.com.co",
+				PayloadTemplate: "",
+				Transport:       "FAST_DNS",
+				RecommendedGW:   "gw-aws-ohio-01",
+				IsActive:        true,
+			},
+			{
 				TweakID:         "movistar_whatsapp_sni",
 				Label:           "Movistar WhatsApp Ilimitado (Auto-Inyección)",
 				Carrier:         "Movistar",

@@ -17,10 +17,35 @@ class PreferenceManager(context: Context) {
         private const val KEY_PASSWORD = "key_password"
         private const val KEY_REMEMBER_CREDENTIALS = "key_remember"
         private const val KEY_SELECTED_SERVER_ID = "key_selected_server_id"
+        private const val KEY_SELECTED_SERVER_HOST = "key_selected_server_host"
+        private const val KEY_SELECTED_SERVER_PORT = "key_selected_server_port"
+        private const val KEY_SELECTED_SERVER_NAME = "key_selected_server_name"
+        private const val KEY_SELECTED_TRANSPORT = "key_selected_transport"
+        private const val KEY_SELECTED_MODE = "key_selected_mode"
         private const val KEY_SELECTED_TWEAK_ID = "key_selected_tweak_id"
         private const val KEY_CUSTOM_SNI = "key_custom_sni"
         private const val KEY_IS_LOGGED_IN = "key_is_logged_in"
     }
+
+    var selectedServerHost: String
+        get() = prefs.getString(KEY_SELECTED_SERVER_HOST, "3.142.187.253") ?: "3.142.187.253"
+        set(value) = prefs.edit().putString(KEY_SELECTED_SERVER_HOST, value).apply()
+
+    var selectedServerPort: Int
+        get() = prefs.getInt(KEY_SELECTED_SERVER_PORT, 53)
+        set(value) = prefs.edit().putInt(KEY_SELECTED_SERVER_PORT, value).apply()
+
+    var selectedServerName: String
+        get() = prefs.getString(KEY_SELECTED_SERVER_NAME, "🔥 AWS Ohio #1 (FastDNS)") ?: "🔥 AWS Ohio #1 (FastDNS)"
+        set(value) = prefs.edit().putString(KEY_SELECTED_SERVER_NAME, value).apply()
+
+    var selectedTransport: String
+        get() = prefs.getString(KEY_SELECTED_TRANSPORT, "FAST_DNS") ?: "FAST_DNS"
+        set(value) = prefs.edit().putString(KEY_SELECTED_TRANSPORT, value).apply()
+
+    var selectedMode: String
+        get() = prefs.getString(KEY_SELECTED_MODE, "FastDNS") ?: "FastDNS"
+        set(value) = prefs.edit().putString(KEY_SELECTED_MODE, value).apply()
 
     var customSni: String
         get() = prefs.getString(KEY_CUSTOM_SNI, "web.whatsapp.net") ?: "web.whatsapp.net"

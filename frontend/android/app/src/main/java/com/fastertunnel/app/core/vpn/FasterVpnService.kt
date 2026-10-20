@@ -127,7 +127,10 @@ class FasterVpnService : VpnService() {
             TunnelLogManager.log("[SNI Spoofing]: $sni (Evasión DPI activa)")
         }
 
-        startForeground(NOTIFICATION_ID, createNotification(serverName, "Estableciendo túnel..."))
+        startForeground(
+            NOTIFICATION_ID,
+            TunnelNotificationManager.buildConnectedNotification(this, serverName, "00:00")
+        )
 
         try {
             TunnelLogManager.updateStatus(TunnelStatus.AUTHENTICATING)
@@ -157,8 +160,8 @@ class FasterVpnService : VpnService() {
             // Iniciar bucle de heartbeat contra backend en Render
             startHeartbeatLoop()
 
-            // Iniciar monitor de tráfico
-            startTrafficMonitor()
+            // Iniciar monitor de tráfico y barra de notificaciones
+            startTrafficMonitor(serverName)
 
             // Iniciar puente de conexión real con inyección y SNI Spoof
             val pfd = vpnInterface!!
@@ -220,12 +223,19 @@ class FasterVpnService : VpnService() {
         }
     }
 
-    private fun startTrafficMonitor() {
+    private fun startTrafficMonitor(serverName: String) {
         statsJob?.cancel()
         statsJob = serviceScope.launch {
             while (isActive) {
                 delay(1000)
                 val duration = (System.currentTimeMillis() - startTimeMs) / 1000
+                val mm = duration / 60
+                val ss = duration % 60
+                val durationStr = String.format("%02d:%02d", mm, ss)
+
+                // Actualizar barra de notificaciones con temporizador en vivo estilo Hamara
+                TunnelNotificationManager.updateConnected(this@FasterVpnService, serverName, durationStr)
+
                 // Simulación de tráfico realista mientras no haya paquetes crudos
                 val deltaIn = (50000..150000).random().toLong()
                 val deltaOut = (20000..60000).random().toLong()
@@ -289,6 +299,8 @@ class FasterVpnService : VpnService() {
         TunnelLogManager.log("Túnel detenido.", isHighlight = true)
 
         stopForeground(STOP_FOREGROUND_REMOVE)
+        // Mantener la notificación persistente fija en la barra de tareas en estado DESCONECTADO
+        TunnelNotificationManager.showDisconnected(applicationContext)
         stopSelf()
     }
 
