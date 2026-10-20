@@ -1,0 +1,64 @@
+version: "3.9"
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  fasterTunnel — Docker Compose para desarrollo local
+#  Uso: docker compose -f backend/docker-compose.yml up --build
+#  O desde la raíz: docker compose --project-directory . -f backend/docker-compose.yml up --build
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  # ── API fasterTunnel ────────────────────────────────────────────────────────
+  api:
+    build:
+      context: ..             # Raíz del repositorio
+      dockerfile: backend/Dockerfile
+    container_name: fastertunnel_api
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      PORT: "8080"
+      DATABASE_URL: "postgresql://fastertunnel:fastertunnel123@postgres:5432/fastertunnel?sslmode=disable"
+      JWT_SECRET: "change-me-in-production-very-long-secret-key-fastertunnel"
+      JWT_EXPIRY: "24"
+      ENV: "development"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - fastertunnel_net
+    labels:
+      - "com.fastertunnel.service=api"
+
+  # ── PostgreSQL 16 ───────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: fastertunnel_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: fastertunnel
+      POSTGRES_PASSWORD: fastertunnel123
+      POSTGRES_DB: fastertunnel
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fastertunnel -d fastertunnel"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - fastertunnel_net
+    labels:
+      - "com.fastertunnel.service=database"
+
+networks:
+  fastertunnel_net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
