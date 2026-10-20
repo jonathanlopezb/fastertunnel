@@ -22,26 +22,20 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Accept Android SDK Licenses & Install Platform 35
+        run: |
+          yes | sdkmanager --licenses || true
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" "cmdline-tools;latest" || true
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
 
-      - name: Grant Execute Permission to Gradlew
+      - name: Generate Wrapper & Build Debug APK
         run: |
           cd frontend/android
+          gradle wrapper --gradle-version 8.10.2 --distribution-type bin || true
           chmod +x gradlew || true
-
-      - name: Generate Gradle Wrapper if Missing
-        run: |
-          cd frontend/android
-          gradle wrapper || true
-
-      - name: Build Debug APK
-        run: |
-          cd frontend/android
-          gradle assembleDebug --stacktrace || ./gradlew assembleDebug --stacktrace
+          ./gradlew assembleDebug --stacktrace || gradle assembleDebug --stacktrace
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
