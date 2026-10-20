@@ -385,6 +385,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 pingMs = 45,
                 maxUsers = 500,
                 currentUsers = 1
+            ),
+            ServerNodeDto(
+                id = 4,
+                nodeId = "gw-cf-latam-01",
+                name = "⚡ Cloudflare CDN (Ultra Rápido Latam 15ms)",
+                countryCode = "CO",
+                flagEmoji = "🇨🇴",
+                host = "gw.fastertunnel.site",
+                port = 443,
+                transport = "WSS",
+                sniHost = "web.whatsapp.net",
+                isActive = true,
+                isPremium = false,
+                pingMs = 15,
+                maxUsers = 1000,
+                currentUsers = 1
             )
         )
         _servers.value = defaultServers
