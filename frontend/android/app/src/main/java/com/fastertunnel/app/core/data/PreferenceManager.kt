@@ -18,8 +18,13 @@ class PreferenceManager(context: Context) {
         private const val KEY_REMEMBER_CREDENTIALS = "key_remember"
         private const val KEY_SELECTED_SERVER_ID = "key_selected_server_id"
         private const val KEY_SELECTED_TWEAK_ID = "key_selected_tweak_id"
+        private const val KEY_CUSTOM_SNI = "key_custom_sni"
         private const val KEY_IS_LOGGED_IN = "key_is_logged_in"
     }
+
+    var customSni: String
+        get() = prefs.getString(KEY_CUSTOM_SNI, "web.whatsapp.net") ?: "web.whatsapp.net"
+        set(value) = prefs.edit().putString(KEY_CUSTOM_SNI, value).apply()
 
     var token: String?
         get() = prefs.getString(KEY_TOKEN, null)

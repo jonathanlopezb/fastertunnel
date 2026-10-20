@@ -36,17 +36,29 @@ class FasterVpnService : VpnService() {
         const val EXTRA_PORT = "extra_port"
         const val EXTRA_SERVER_NAME = "extra_server_name"
         const val EXTRA_TRANSPORT = "extra_transport"
+        const val EXTRA_SNI = "extra_sni"
+        const val EXTRA_PAYLOAD = "extra_payload"
 
         private const val NOTIFICATION_ID = 1001
         private const val CHANNEL_ID = "fastertunnel_vpn_channel"
 
-        fun start(context: Context, host: String, port: Int, serverName: String, transport: String) {
+        fun start(
+            context: Context,
+            host: String,
+            port: Int,
+            serverName: String,
+            transport: String,
+            sni: String? = null,
+            payload: String? = null
+        ) {
             val intent = Intent(context, FasterVpnService::class.java).apply {
                 action = ACTION_CONNECT
                 putExtra(EXTRA_HOST, host)
                 putExtra(EXTRA_PORT, port)
                 putExtra(EXTRA_SERVER_NAME, serverName)
                 putExtra(EXTRA_TRANSPORT, transport)
+                putExtra(EXTRA_SNI, sni)
+                putExtra(EXTRA_PAYLOAD, payload)
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(intent)
@@ -80,6 +92,8 @@ class FasterVpnService : VpnService() {
         createNotificationChannel()
     }
 
+    private var tunnelBridge: TunnelConnectionBridge? = null
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_CONNECT -> {
@@ -87,7 +101,9 @@ class FasterVpnService : VpnService() {
                 val port = intent.getIntExtra(EXTRA_PORT, 443)
                 val serverName = intent.getStringExtra(EXTRA_SERVER_NAME) ?: "fasterTunnel Node"
                 val transport = intent.getStringExtra(EXTRA_TRANSPORT) ?: "UDP_CUSTOM"
-                connectTunnel(host, port, serverName, transport)
+                val sni = intent.getStringExtra(EXTRA_SNI)
+                val payload = intent.getStringExtra(EXTRA_PAYLOAD)
+                connectTunnel(host, port, serverName, transport, sni, payload)
             }
             ACTION_DISCONNECT -> {
                 disconnectTunnel("Desconexión solicitada por el usuario")
@@ -96,10 +112,20 @@ class FasterVpnService : VpnService() {
         return START_NOT_STICKY
     }
 
-    private fun connectTunnel(host: String, port: Int, serverName: String, transport: String) {
+    private fun connectTunnel(
+        host: String,
+        port: Int,
+        serverName: String,
+        transport: String,
+        sni: String?,
+        payload: String?
+    ) {
         TunnelLogManager.updateStatus(TunnelStatus.CONNECTING)
-        TunnelLogManager.log("Iniciando servicio de túnel...", isHighlight = true)
+        TunnelLogManager.log("Iniciando servicio de inyección y túnel...", isHighlight = true)
         TunnelLogManager.log("Servidor objetivo: $serverName ($host:$port) [$transport]")
+        if (!sni.isNullOrBlank()) {
+            TunnelLogManager.log("[SNI Spoofing]: $sni (Evasión DPI activa)")
+        }
 
         startForeground(NOTIFICATION_ID, createNotification(serverName, "Estableciendo túnel..."))
 
@@ -117,11 +143,6 @@ class FasterVpnService : VpnService() {
                 .setMtu(1500)
                 .setBlocking(false)
 
-            // Excluir la IP del Gateway para que el tráfico encapsulado no haga loop
-            try {
-                protect(DatagramChannel.open().socket())
-            } catch (_: Exception) {}
-
             vpnInterface = builder.establish()
             if (vpnInterface == null) {
                 TunnelLogManager.log("Error al crear la interfaz TUN virtual", isError = true)
@@ -131,21 +152,27 @@ class FasterVpnService : VpnService() {
             }
 
             startTimeMs = System.currentTimeMillis()
-            TunnelLogManager.updateStatus(TunnelStatus.CONNECTED)
-            TunnelLogManager.log("¡Túnel establecido exitosamente!", isHighlight = true)
-            TunnelLogManager.log("Interfaz TUN asignada: 10.8.0.2 (MTU 1500)")
-            TunnelLogManager.log("Anti-DNS Leak activado vía DoH")
-
             updateNotification(serverName, "Conectado y seguro")
 
             // Iniciar bucle de heartbeat contra backend en Render
             startHeartbeatLoop()
 
-            // Iniciar monitor de tráfico simulado/real
+            // Iniciar monitor de tráfico
             startTrafficMonitor()
 
-            // Iniciar worker de paquetes
-            startPacketWorker()
+            // Iniciar puente de conexión real con inyección y SNI Spoof
+            val pfd = vpnInterface!!
+            serviceScope.launch {
+                tunnelBridge = TunnelConnectionBridge(
+                    vpnInterface = pfd,
+                    host = host,
+                    port = port,
+                    transport = transport,
+                    sni = sni,
+                    payloadTemplate = payload
+                )
+                tunnelBridge?.execute()
+            }
 
         } catch (e: Exception) {
             TunnelLogManager.log("Excepción al iniciar túnel: ${e.message}", isError = true)
@@ -245,6 +272,8 @@ class FasterVpnService : VpnService() {
         heartbeatJob?.cancel()
         tunnelJob?.cancel()
         statsJob?.cancel()
+        tunnelBridge?.close()
+        tunnelBridge = null
 
         try {
             vpnInterface?.close()

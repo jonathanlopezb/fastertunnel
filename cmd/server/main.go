@@ -33,8 +33,9 @@ func main() {
 		log.Fatalf("[DB] Migration failed: %v", err)
 	}
 
-	// ── Crear usuario admin por defecto si no existe ──────────────────────
+	// ── Crear usuario admin y semillas por defecto ───────────────────────
 	seedDefaultAdmin()
+	seedDefaultServersAndTweaks()
 
 	// ── Inicializar servicios ─────────────────────────────────────────────
 	authService := services.NewAuthService(cfg.JWTSecret, cfg.JWTExpiry)
@@ -96,4 +97,122 @@ func seedDefaultAdmin() {
 
 	log.Println("[SEED] Default admin user created: admin / fastertunnel2024")
 	log.Println("[SEED] ⚠️  Change the admin password immediately in production!")
+}
+
+// seedDefaultServersAndTweaks carga servidores y tweaks optimizados para Movistar y Latam si la DB está vacía.
+func seedDefaultServersAndTweaks() {
+	gormDB := database.DB
+
+	// Servidores Gateway
+	var serverCount int64
+	gormDB.Model(&models.ServerNode{}).Count(&serverCount)
+	if serverCount == 0 {
+		servers := []models.ServerNode{
+			{
+				NodeID:       "gw-us-01",
+				Name:         "Estados Unidos #1 (Gaming & UDP)",
+				CountryCode:  "US",
+				FlagEmoji:    "🇺🇸",
+				Host:         "1.1.1.1", // DNS/Cloudflare anycast para pruebas inmediatas
+				Port:         443,
+				Transport:    models.TransportWSS,
+				SNIHost:      "web.whatsapp.net",
+				IsActive:     true,
+				IsPremium:    false,
+				PingMs:       38,
+				MaxUsers:     200,
+				CurrentUsers: 14,
+			},
+			{
+				NodeID:       "gw-movistar-02",
+				Name:         "Latam Movistar Bypass #2 (Cloudflare WSS)",
+				CountryCode:  "CO",
+				FlagEmoji:    "🇨🇴",
+				Host:         "104.16.132.229", // IP Anycast CDN
+				Port:         443,
+				Transport:    models.TransportWSS,
+				SNIHost:      "web.whatsapp.net",
+				IsActive:     true,
+				IsPremium:    false,
+				PingMs:       28,
+				MaxUsers:     200,
+				CurrentUsers: 22,
+			},
+			{
+				NodeID:       "gw-de-03",
+				Name:         "Alemania #3 (Stealth SSL)",
+				CountryCode:  "DE",
+				FlagEmoji:    "🇩🇪",
+				Host:         "1.0.0.1",
+				Port:         443,
+				Transport:    models.TransportSSL,
+				SNIHost:      "portal.movistar.com.pe",
+				IsActive:     true,
+				IsPremium:    false,
+				PingMs:       112,
+				MaxUsers:     100,
+				CurrentUsers: 9,
+			},
+		}
+		for _, s := range servers {
+			gormDB.Create(&s)
+		}
+		log.Println("[SEED] Default gateway servers seeded successfully")
+	}
+
+	// Tweaks / Payloads
+	var tweakCount int64
+	gormDB.Model(&models.Tweak{}).Count(&tweakCount)
+	if tweakCount == 0 {
+		tweaks := []models.Tweak{
+			{
+				TweakID:         "movistar_whatsapp_sni",
+				Label:           "Movistar WhatsApp Ilimitado (Auto-Inyección)",
+				Carrier:         "Movistar",
+				Country:         "LATAM",
+				SNISpoof:        "web.whatsapp.net",
+				PayloadTemplate: "GET / HTTP/1.1\r\nHost: [sni]\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nUser-Agent: [ua]\r\n\r\n",
+				Transport:       "WSS",
+				RecommendedGW:   "gw-movistar-02",
+				IsActive:        true,
+			},
+			{
+				TweakID:         "movistar_portal_ssl",
+				Label:           "Movistar Portal & App (SSL Spoof)",
+				Carrier:         "Movistar",
+				Country:         "LATAM",
+				SNISpoof:        "portal.movistar.com.pe",
+				PayloadTemplate: "CONNECT [host_port] HTTP/1.1\r\nHost: [sni]\r\nX-Online-Host: [sni]\r\nConnection: Keep-Alive\r\n\r\n",
+				Transport:       "SSL",
+				RecommendedGW:   "gw-de-03",
+				IsActive:        true,
+			},
+			{
+				TweakID:         "movistar_recargas_co",
+				Label:           "Movistar Colombia (Recargas / WSS)",
+				Carrier:         "Movistar",
+				Country:         "CO",
+				SNISpoof:        "recargas.movistar.com.co",
+				PayloadTemplate: "GET / HTTP/1.1\r\nHost: [sni]\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n",
+				Transport:       "WSS",
+				RecommendedGW:   "gw-movistar-02",
+				IsActive:        true,
+			},
+			{
+				TweakID:         "movistar_dns_udp",
+				Label:           "Movistar DNS UDP 53 (Bypass Filtro)",
+				Carrier:         "Movistar",
+				Country:         "LATAM",
+				SNISpoof:        "",
+				PayloadTemplate: "",
+				Transport:       "UDP_CUSTOM",
+				RecommendedGW:   "gw-us-01",
+				IsActive:        true,
+			},
+		}
+		for _, t := range tweaks {
+			gormDB.Create(&t)
+		}
+		log.Println("[SEED] Default Movistar tweaks seeded successfully")
+	}
 }

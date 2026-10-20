@@ -31,11 +31,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.CloudOff
+import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.SignalCellularAlt
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material.icons.filled.Warning
@@ -100,6 +103,9 @@ fun MainTunnelScreen(
     val tweaks by viewModel.tweaks.collectAsState()
     val selectedTweak by viewModel.selectedTweak.collectAsState()
 
+    val carrier by viewModel.carrierInfo.collectAsState()
+    val customSni by viewModel.customSni.collectAsState()
+
     val showLogin by viewModel.showLoginDialog.collectAsState()
     val isLoggingIn by viewModel.isLoggingIn.collectAsState()
     val loginError by viewModel.loginError.collectAsState()
@@ -107,6 +113,7 @@ fun MainTunnelScreen(
 
     var showServerSheet by remember { mutableStateOf(false) }
     var showTweakSheet by remember { mutableStateOf(false) }
+    var showCustomSniDialog by remember { mutableStateOf(false) }
 
     val logListState = rememberLazyListState()
 
@@ -240,6 +247,55 @@ fun MainTunnelScreen(
                 }
             }
 
+            // ── Badge de Operador SIM y Detección Movistar ─────────────────────
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(DarkSurfaceVariant)
+                    .padding(horizontal = 14.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.SignalCellularAlt,
+                        contentDescription = null,
+                        tint = if (carrier.isMovistar) CyanPrimary else AmberAccent,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "SIM: ${carrier.name} (${carrier.countryIso})",
+                        color = TextWhite,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(
+                                if (carrier.isMovistar)
+                                    CyanPrimary.copy(alpha = 0.2f)
+                                else
+                                    AmberAccent.copy(alpha = 0.2f)
+                            )
+                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                    ) {
+                        Text(
+                            text = if (carrier.isMovistar) "Auto Movistar" else "Inyección Activa",
+                            color = if (carrier.isMovistar) CyanPrimary else AmberAccent,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+
             // ── Alerta si fue Desalojado por Otro Dispositivo (Preemption) ─────
             if (status == TunnelStatus.PREEMPTED) {
                 Spacer(modifier = Modifier.height(10.dp))
@@ -345,10 +401,26 @@ fun MainTunnelScreen(
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = selectedTweak?.label ?: "Directo UDP",
+                            text = selectedTweak?.label ?: "Movistar WhatsApp",
                             color = TextWhite,
                             fontSize = 14.sp,
                             fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = "SNI: ${selectedTweak?.sniSpoof ?: customSni}",
+                            color = CyanPrimary,
+                            fontSize = 11.sp
+                        )
+                    }
+                    IconButton(
+                        onClick = { showCustomSniDialog = true },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = "Editar SNI",
+                            tint = CyanPrimary,
+                            modifier = Modifier.size(16.dp)
                         )
                     }
                     Icon(
@@ -606,6 +678,14 @@ fun MainTunnelScreen(
                 selectedTweak = selectedTweak,
                 onTweakSelected = { viewModel.selectTweak(it) },
                 onDismiss = { showTweakSheet = false }
+            )
+        }
+
+        if (showCustomSniDialog) {
+            CustomSniDialog(
+                currentSni = customSni,
+                onDismiss = { showCustomSniDialog = false },
+                onSaveSni = { viewModel.updateCustomSni(it) }
             )
         }
     }

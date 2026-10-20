@@ -27,6 +27,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val trafficStats = TunnelLogManager.stats
     val logs = TunnelLogManager.logs
 
+    private val _carrierInfo = MutableStateFlow(CarrierDetector.detectCarrier(application))
+    val carrierInfo: StateFlow<CarrierDetector.CarrierInfo> = _carrierInfo.asStateFlow()
+
+    private val _customSni = MutableStateFlow(prefs.customSni)
+    val customSni: StateFlow<String> = _customSni.asStateFlow()
+
     private val _isBackendOnline = MutableStateFlow(false)
     val isBackendOnline: StateFlow<Boolean> = _isBackendOnline.asStateFlow()
 
@@ -201,6 +207,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun updateCustomSni(newSni: String) {
+        val trimmed = newSni.trim()
+        _customSni.value = trimmed
+        prefs.customSni = trimmed
+        TunnelLogManager.log("SNI personalizado actualizado: $trimmed")
+    }
+
     private fun startTunnel(context: Context) {
         if (!prefs.isLoggedIn || prefs.token.isNullOrEmpty()) {
             _showLoginDialog.value = true
@@ -216,8 +229,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             flagEmoji = "🇺🇸",
             host = "us1.fastertunnel.net",
             port = 443,
-            transport = "UDP_CUSTOM",
-            sniHost = null,
+            transport = "WSS",
+            sniHost = "web.whatsapp.net",
             isActive = true,
             isPremium = false,
             pingMs = 45,
@@ -225,12 +238,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             currentUsers = 12
         )
 
+        val tweak = _selectedTweak.value
+        val effectiveSni = tweak?.sniSpoof?.ifBlank { _customSni.value } ?: _customSni.value
+        val payload = tweak?.payloadTemplate
+
+        TunnelLogManager.log("SIM Operador: ${_carrierInfo.value.name} (${_carrierInfo.value.countryIso})")
+        TunnelLogManager.log("Tweak activo: ${tweak?.label ?: "Movistar WSS"}")
+        TunnelLogManager.log("SNI Inyectado: $effectiveSni", isHighlight = true)
+
         FasterVpnService.start(
             context = context,
             host = server.host,
             port = server.port,
             serverName = server.name,
-            transport = server.transport
+            transport = server.transport,
+            sni = effectiveSni,
+            payload = payload
         )
     }
 
@@ -327,10 +350,46 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val defaultTweaks = listOf(
             TweakDto(
                 id = 1,
-                tweakId = "direct_udp",
-                label = "Directo UDP (Sin Restricción)",
-                carrier = "Universal",
-                country = "ALL",
+                tweakId = "movistar_whatsapp_sni",
+                label = "Movistar WhatsApp Ilimitado (Auto-Inyección)",
+                carrier = "Movistar",
+                country = "LATAM",
+                sniSpoof = "web.whatsapp.net",
+                payloadTemplate = "GET / HTTP/1.1\r\nHost: [sni]\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nUser-Agent: [ua]\r\n\r\n",
+                transport = "WSS",
+                recommendedGateway = "gw-us-01",
+                isActive = true
+            ),
+            TweakDto(
+                id = 2,
+                tweakId = "movistar_portal_ssl",
+                label = "Movistar Portal & App (SSL Spoof)",
+                carrier = "Movistar",
+                country = "LATAM",
+                sniSpoof = "portal.movistar.com.pe",
+                payloadTemplate = "CONNECT [host_port] HTTP/1.1\r\nHost: [sni]\r\nX-Online-Host: [sni]\r\nConnection: Keep-Alive\r\n\r\n",
+                transport = "SSL",
+                recommendedGateway = "gw-de-02",
+                isActive = true
+            ),
+            TweakDto(
+                id = 3,
+                tweakId = "movistar_colombia_ws",
+                label = "Movistar Colombia (Recargas / WSS)",
+                carrier = "Movistar",
+                country = "CO",
+                sniSpoof = "recargas.movistar.com.co",
+                payloadTemplate = "GET / HTTP/1.1\r\nHost: [sni]\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n",
+                transport = "WSS",
+                recommendedGateway = "gw-us-01",
+                isActive = true
+            ),
+            TweakDto(
+                id = 4,
+                tweakId = "movistar_dns_udp",
+                label = "Movistar DNS UDP 53 (Bypass Filtro)",
+                carrier = "Movistar",
+                country = "LATAM",
                 sniSpoof = null,
                 payloadTemplate = null,
                 transport = "UDP_CUSTOM",
@@ -338,19 +397,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 isActive = true
             ),
             TweakDto(
-                id = 2,
-                tweakId = "ssl_sni_spoof",
-                label = "SSL / SNI Spoof (Cloudflare)",
-                carrier = "Universal",
-                country = "ALL",
-                sniSpoof = "www.cloudflare.com",
-                payloadTemplate = null,
-                transport = "SSL",
-                recommendedGateway = "gw-de-02",
-                isActive = true
-            ),
-            TweakDto(
-                id = 3,
+                id = 5,
                 tweakId = "claro_latam_ws",
                 label = "Claro Redes Sociales (Payload WSS)",
                 carrier = "Claro",
@@ -362,19 +409,29 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 isActive = true
             ),
             TweakDto(
-                id = 4,
-                tweakId = "movistar_ws",
-                label = "Movistar Ilimitado (Payload)",
-                carrier = "Movistar",
-                country = "LATAM",
-                sniSpoof = "web.whatsapp.net",
-                payloadTemplate = "GET / HTTP/1.1\r\nHost: [sni]\r\nUpgrade: websocket\r\n\r\n",
-                transport = "WSS",
+                id = 6,
+                tweakId = "ssl_sni_custom",
+                label = "Modo SNI Personalizado (Manual)",
+                carrier = "Cualquiera",
+                country = "ALL",
+                sniSpoof = _customSni.value,
+                payloadTemplate = "CONNECT [host_port] HTTP/1.1\r\nHost: [sni]\r\nConnection: Keep-Alive\r\n\r\n",
+                transport = "SSL",
                 recommendedGateway = "gw-us-01",
                 isActive = true
             )
         )
         _tweaks.value = defaultTweaks
+
+        // Si la SIM detectada es Movistar, auto-seleccionar el tweak de Movistar WhatsApp
+        val detected = _carrierInfo.value
+        val autoSelectedTweak = if (detected.isMovistar) {
+            defaultTweaks.first { it.tweakId == "movistar_whatsapp_sni" }
+        } else {
+            defaultTweaks.firstOrNull { it.tweakId == prefs.selectedTweakId } ?: defaultTweaks.first()
+        }
+        _selectedTweak.value = autoSelectedTweak
+        prefs.selectedTweakId = autoSelectedTweak.tweakId
         _selectedTweak.value = defaultTweaks.first()
     }
 }
