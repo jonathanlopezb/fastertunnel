@@ -216,6 +216,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         TunnelLogManager.log("SNI personalizado actualizado: $trimmed")
     }
 
+    fun setCarrierManual(isMovistar: Boolean) {
+        val newCarrier = if (isMovistar) {
+            CarrierInfo(name = "Movistar", countryIso = "CO", isMovistar = true, isClaro = false, isTigo = false)
+        } else {
+            CarrierInfo(name = "Claro", countryIso = "CO", isMovistar = false, isClaro = true, isTigo = false)
+        }
+        _carrierInfo.value = newCarrier
+        val defaultTweaks = _tweaks.value
+        val targetTweak = if (isMovistar) {
+            defaultTweaks.firstOrNull { it.tweakId == "movistar_ws_portal" }
+        } else {
+            defaultTweaks.firstOrNull { it.tweakId == "claro_fastdns_udp" }
+        }
+        targetTweak?.let {
+            _selectedTweak.value = it
+            prefs.selectedTweakId = it.tweakId
+        }
+        TunnelLogManager.log("SIM fijada manualmente a: ${newCarrier.name}", isHighlight = true)
+    }
+
     fun onModeSelected(mode: String) {
         prefs.selectedMode = mode
         TunnelLogManager.log("Modo seleccionado: $mode", isHighlight = true)

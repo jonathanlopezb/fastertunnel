@@ -248,7 +248,7 @@ fun MainTunnelScreen(
                 }
             }
 
-            // ── Badge de Operador SIM y Detección Movistar ─────────────────────
+            // ── Badge de Operador SIM y Detección Movistar / Claro ────────────
             Spacer(modifier = Modifier.height(8.dp))
             Row(
                 modifier = Modifier
@@ -268,28 +268,54 @@ fun MainTunnelScreen(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "SIM: ${carrier.name} (${carrier.countryIso})",
+                        text = "SIM: ${carrier.name}",
                         color = TextWhite,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold
                     )
                 }
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    // Botón selector rápido Movistar
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(6.dp))
                             .background(
                                 if (carrier.isMovistar)
-                                    CyanPrimary.copy(alpha = 0.2f)
+                                    CyanPrimary
                                 else
-                                    AmberAccent.copy(alpha = 0.2f)
+                                    DarkSurface
                             )
-                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                            .clickable { viewModel.setCarrierManual(true) }
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
                         Text(
-                            text = if (carrier.isMovistar) "Auto Movistar" else "Inyección Activa",
-                            color = if (carrier.isMovistar) CyanPrimary else AmberAccent,
+                            text = "Movistar",
+                            color = if (carrier.isMovistar) DarkBackground else TextMuted,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    // Botón selector rápido Claro
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(
+                                if (carrier.isClaro)
+                                    AmberAccent
+                                else
+                                    DarkSurface
+                            )
+                            .clickable { viewModel.setCarrierManual(false) }
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = "Claro",
+                            color = if (carrier.isClaro) DarkBackground else TextMuted,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold
                         )

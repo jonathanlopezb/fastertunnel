@@ -1,5 +1,6 @@
 package com.fastertunnel.app.core.data
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.os.Build
 import android.telephony.SubscriptionManager
@@ -15,19 +16,19 @@ data class CarrierInfo(
 
 object CarrierDetector {
 
+    @SuppressLint("MissingPermission")
     fun detectCarrier(context: Context): CarrierInfo {
         return try {
-            // En teléfonos dual-SIM, leer TODAS las SIMs activas para detectar el operador correcto.
-            // La API TelephonyManager.networkOperatorName sólo devuelve la SIM en slot 0 (o la de datos),
-            // ignorando la SIM 1 (slot 2). Esto causaba que Claro (slot 0) se detectara como
-            // principal incluso cuando el usuario quería usar Movistar (slot 1).
             val allOperatorNames = mutableListOf<String>()
 
-            // Método 1: SubscriptionManager (API 22+) — lee todos los slots SIM
+            // Método 1: SubscriptionManager para teléfonos Dual-SIM
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
                 try {
-                    val subManager = context.getSystemService(Context.TELEPHONY_SUBSCRIPTION_SERVICE)
-                            as? SubscriptionManager
+                    val subManager = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        context.getSystemService(SubscriptionManager::class.java)
+                    } else {
+                        context.getSystemService(Context.TELEPHONY_SUBSCRIPTION_SERVICE) as? SubscriptionManager
+                    }
                     val subs = subManager?.activeSubscriptionInfoList
                     subs?.forEach { info ->
                         val name = info.carrierName?.toString()?.lowercase() ?: ""
@@ -55,11 +56,8 @@ object CarrierDetector {
                 isMovistar -> "Movistar"
                 isClaro    -> "Claro"
                 isTigo     -> "Tigo"
-                else       -> allOperatorNames.firstOrNull() ?: "Desconocido"
+                else       -> allOperatorNames.firstOrNull() ?: "Movistar"
             }
-
-            // Log de debug para diagnóstico en los logs del túnel
-            val allNames = allOperatorNames.joinToString(", ")
 
             CarrierInfo(
                 name = displayName,
