@@ -36,7 +36,7 @@ class TunnelConnectionBridge(
 
     suspend fun execute() = withContext(Dispatchers.IO) {
         isRunning = true
-        val effectiveSni = sni?.ifBlank { "portalrecargas.claro.com.co" } ?: "portalrecargas.claro.com.co"
+        val effectiveSni = sni?.ifBlank { "mi.movistar.com.co" } ?: "mi.movistar.com.co"
 
         try {
             // Manejo de protocolo FastDNS / UDP Custom (Bypass para Claro y Movistar sin saldo)
@@ -45,7 +45,6 @@ class TunnelConnectionBridge(
                 TunnelLogManager.log("[FastDNS] Conectando a $host:$targetPort vía UDP (Bypass Claro/Movistar)...", isHighlight = true)
                 val channel = DatagramChannel.open()
                 channel.configureBlocking(true)
-                // protect() evita que los paquetes UDP del gateway vuelvan a entrar al TUN (loop infinito)
                 try { vpnService?.protect(channel.socket()) } catch (_: Exception) {}
                 channel.connect(InetSocketAddress(host, targetPort))
                 activeDatagramChannel = channel
@@ -55,40 +54,44 @@ class TunnelConnectionBridge(
                 return@withContext
             }
 
-            TunnelLogManager.log("[DNS] Resolviendo gateway: $host...", isHighlight = true)
+            TunnelLogManager.log("[TCP] Conectando a $host:$port...", isHighlight = true)
 
-            val socket: Socket = when (transport) {
-                "SSL", "TLS", "WSS" -> {
-                    TunnelLogManager.log("[SSL] Negociando TLS con SNI Spoof: $effectiveSni...")
-                    val rawSocket = Socket()
-                    // protect() impide que el socket TLS del gateway sea redirigido por la VPN misma
-                    try { vpnService?.protect(rawSocket) } catch (_: Exception) {}
-                    val sslSocket = SslSniSocketFactory.createSniSslSocketFromRaw(
-                        rawSocket = rawSocket,
-                        host = host,
-                        port = port,
-                        sniHost = effectiveSni,
-                        timeoutMs = 12000
-                    )
-                    TunnelLogManager.log("[SSL] Apretón de manos TLS completado exitosamente", isHighlight = true)
-                    sslSocket
-                }
-                else -> {
-                    TunnelLogManager.log("[TCP] Conectando a $host:$port...")
-                    val tcpSocket = Socket()
-                    // protect() impide que TCP del gateway sea redirigido por la VPN misma
-                    try { vpnService?.protect(tcpSocket) } catch (_: Exception) {}
-                    tcpSocket.connect(InetSocketAddress(host, port), 10000)
-                    tcpSocket
-                }
+            // CRÍTICO: WSS en puerto 443 → TLS real
+            //          WS / WSS en puerto 80 → TCP plano + HTTP Upgrade (NO TLS)
+            // El error "Unable to parse TLS packet header" ocurre cuando se intenta
+            // TLS en un socket que habla HTTP plano (puerto 80 del relay).
+            val useTls = (transport == "SSL" || transport == "TLS") ||
+                         (transport == "WSS" && port == 443)
+
+            val socket: Socket = if (useTls) {
+                TunnelLogManager.log("[SSL] Negociando TLS con SNI Spoof: $effectiveSni...")
+                val rawSocket = Socket()
+                try { vpnService?.protect(rawSocket) } catch (_: Exception) {}
+                val sslSocket = SslSniSocketFactory.createSniSslSocketFromRaw(
+                    rawSocket = rawSocket,
+                    host = host,
+                    port = port,
+                    sniHost = effectiveSni,
+                    timeoutMs = 12000
+                )
+                TunnelLogManager.log("[SSL] Apretón de manos TLS completado exitosamente", isHighlight = true)
+                sslSocket
+            } else {
+                // WS en puerto 80 o cualquier TCP plano — sin TLS
+                TunnelLogManager.log("[WS] Conectando TCP plano a $host:$port (sin TLS)...")
+                val tcpSocket = Socket()
+                try { vpnService?.protect(tcpSocket) } catch (_: Exception) {}
+                tcpSocket.connect(InetSocketAddress(host, port), 10000)
+                TunnelLogManager.log("[WS] Socket TCP conectado", isHighlight = true)
+                tcpSocket
             }
 
             activeSocket = socket
             val outStream = socket.getOutputStream()
             val inStream = socket.getInputStream()
 
-            // Inyección de Payload HTTP si aplica
-            if (!payloadTemplate.isNullOrBlank() || transport == "WSS") {
+            // Inyección de Payload HTTP si aplica (WS, WSS, o plantilla custom)
+            if (!payloadTemplate.isNullOrBlank() || transport == "WSS" || transport == "WS") {
                 val formattedPayload = if (!payloadTemplate.isNullOrBlank()) {
                     PayloadInjector.formatPayload(payloadTemplate, host, port, effectiveSni)
                 } else {
@@ -106,6 +109,11 @@ class TunnelConnectionBridge(
                 val statusLine = reader.readLine()
                 if (statusLine != null) {
                     TunnelLogManager.log("[RESPUESTA] $statusLine", isHighlight = true)
+                    // Leer headers completos hasta línea vacía (para no dejar datos en el buffer)
+                    var line = reader.readLine()
+                    while (!line.isNullOrBlank()) {
+                        line = reader.readLine()
+                    }
                 }
             }
 

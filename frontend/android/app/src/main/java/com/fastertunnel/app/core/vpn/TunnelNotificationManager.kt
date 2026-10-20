@@ -14,21 +14,31 @@ import com.fastertunnel.app.R
 object TunnelNotificationManager {
 
     const val NOTIFICATION_ID = 1001
-    const val CHANNEL_ID = "fastertunnel_vpn_channel"
-    private const val CHANNEL_NAME = "FasterTunnel Estado"
+    // IMPORTANTE: cambiamos el ID del canal para forzar recreación con IMPORTANCE_HIGH.
+    // Android no permite cambiar la importancia de un canal existente — solo recreándolo
+    // con un ID nuevo se aplica la nueva configuración.
+    const val CHANNEL_ID = "ft_vpn_v3"
+    private const val CHANNEL_NAME = "FasterTunnel VPN"
 
     fun ensureChannel(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            // Eliminar canales viejos si existen
+            try { manager.deleteNotificationChannel("fastertunnel_vpn_channel") } catch (_: Exception) {}
+            try { manager.deleteNotificationChannel("ft_vpn_v2") } catch (_: Exception) {}
+
             if (manager.getNotificationChannel(CHANNEL_ID) == null) {
                 val channel = NotificationChannel(
                     CHANNEL_ID,
                     CHANNEL_NAME,
-                    NotificationManager.IMPORTANCE_DEFAULT
+                    NotificationManager.IMPORTANCE_LOW  // LOW = sin sonido pero siempre visible en VPN
                 ).apply {
-                    description = "Muestra el estado de conexión del túnel y controles directos"
+                    description = "Estado activo del túnel FasterTunnel"
                     setShowBadge(false)
-                    lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
+                    enableLights(false)
+                    enableVibration(false)
+                    setSound(null, null)
+                    lockscreenVisibility = Notification.VISIBILITY_PUBLIC
                 }
                 manager.createNotificationChannel(channel)
             }

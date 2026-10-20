@@ -288,7 +288,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         val effectivePort = when {
             effectiveTransport == "FAST_DNS" -> 53
-            effectiveTransport == "WSS" -> 80   // ws-relay en EC2 escucha port 80
+            effectiveTransport == "WS"  -> 80   // WebSocket plano → ws-relay en EC2 port 80
+            effectiveTransport == "WSS" && effectiveServer.port == 443 -> 443  // WSS real solo port 443
+            effectiveTransport == "WSS" -> 80   // WSS en port 80 = WS plano (relay)
             else -> effectiveServer.port
         }
         val effectiveSni = tweak?.sniSpoof?.ifBlank { _customSni.value } ?: _customSni.value
@@ -425,46 +427,50 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _selectedServer.value = defaultServers.first()
 
         val defaultTweaks = listOf(
+            // ── MOVISTAR Colombia ──
+            // El relay escucha en puerto 80 con HTTP plano (no TLS).
+            // Transporte "WS" = TCP plano + HTTP Upgrade (sin SSL).
+            // Transporte "WSS" = TLS + HTTP Upgrade (solo port 443).
             TweakDto(
                 id = 1,
-                tweakId = "claro_fastdns_udp",
-                label = "Claro Colombia FastDNS (UDP 53 - Sin Saldo)",
-                carrier = "Claro",
+                tweakId = "movistar_ws_portal",
+                label = "Movistar Colombia – Portal mi.movistar (WS/80)",
+                carrier = "Movistar",
                 country = "CO",
-                sniSpoof = "portalrecargas.claro.com.co",
-                payloadTemplate = null,
-                transport = "FAST_DNS",
-                recommendedGateway = "gw-aws-ohio-01",
+                sniSpoof = "mi.movistar.com.co",
+                payloadTemplate = "GET / HTTP/1.1\r\nHost: [sni]\r\nX-Online-Host: [sni]\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Version: 13\r\nUser-Agent: [ua]\r\n\r\n",
+                transport = "WS",       // ← WS = TCP plano, NO TLS
+                recommendedGateway = "gw-aws-ohio-02",
                 isActive = true
             ),
             TweakDto(
                 id = 2,
-                tweakId = "movistar_wss_portal",
-                label = "Movistar Colombia WSS (Portal - Sin Saldo)",
+                tweakId = "movistar_ws_recargas",
+                label = "Movistar Colombia – Recargas SNI (WS/80)",
                 carrier = "Movistar",
                 country = "CO",
-                sniSpoof = "mi.movistar.com.co",
-                payloadTemplate = "GET / HTTP/1.1\r\nHost: [sni]\r\nX-Online-Host: [sni]\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nUser-Agent: [ua]\r\n\r\n",
-                transport = "WSS",
+                sniSpoof = "recargas.movistar.com.co",
+                payloadTemplate = "GET / HTTP/1.1\r\nHost: [sni]\r\nX-Online-Host: [sni]\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Version: 13\r\nUser-Agent: [ua]\r\n\r\n",
+                transport = "WS",
                 recommendedGateway = "gw-aws-ohio-02",
                 isActive = true
             ),
             TweakDto(
                 id = 3,
-                tweakId = "movistar_wss_recargas",
-                label = "Movistar Colombia WSS (Recargas SNI)",
+                tweakId = "movistar_ws_whatsapp",
+                label = "Movistar – WhatsApp SNI (WS/80)",
                 carrier = "Movistar",
-                country = "CO",
-                sniSpoof = "recargas.movistar.com.co",
-                payloadTemplate = "GET / HTTP/1.1\r\nHost: [sni]\r\nX-Online-Host: [sni]\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nUser-Agent: [ua]\r\n\r\n",
-                transport = "WSS",
+                country = "LATAM",
+                sniSpoof = "web.whatsapp.net",
+                payloadTemplate = "GET / HTTP/1.1\r\nHost: [sni]\r\nX-Online-Host: [sni]\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Version: 13\r\nUser-Agent: [ua]\r\n\r\n",
+                transport = "WS",
                 recommendedGateway = "gw-aws-ohio-02",
                 isActive = true
             ),
             TweakDto(
                 id = 4,
                 tweakId = "movistar_fastdns_udp",
-                label = "Movistar FastDNS (UDP 53 - Sin Saldo)",
+                label = "Movistar FastDNS (UDP 53 – Sin Saldo)",
                 carrier = "Movistar",
                 country = "CO",
                 sniSpoof = "recargas.movistar.com.co",
@@ -473,27 +479,28 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 recommendedGateway = "gw-aws-ohio-01",
                 isActive = true
             ),
+            // ── CLARO Colombia ──
             TweakDto(
                 id = 5,
-                tweakId = "movistar_whatsapp_sni",
-                label = "Movistar WhatsApp Ilimitado (Auto-Inyección)",
-                carrier = "Movistar",
-                country = "LATAM",
-                sniSpoof = "web.whatsapp.net",
-                payloadTemplate = "GET / HTTP/1.1\r\nHost: [sni]\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nUser-Agent: [ua]\r\n\r\n",
-                transport = "WSS",
-                recommendedGateway = "gw-aws-ohio-02",
+                tweakId = "claro_fastdns_udp",
+                label = "Claro Colombia FastDNS (UDP 53 – Sin Saldo)",
+                carrier = "Claro",
+                country = "CO",
+                sniSpoof = "portalrecargas.claro.com.co",
+                payloadTemplate = null,
+                transport = "FAST_DNS",
+                recommendedGateway = "gw-aws-ohio-01",
                 isActive = true
             ),
             TweakDto(
                 id = 6,
-                tweakId = "claro_portal_ssl",
-                label = "Claro Colombia Portal (SSL Spoof)",
+                tweakId = "claro_ws_portal",
+                label = "Claro Colombia – Portal Recargas (WS/80)",
                 carrier = "Claro",
                 country = "CO",
                 sniSpoof = "portalrecargas.claro.com.co",
-                payloadTemplate = "CONNECT [host_port] HTTP/1.1\r\nHost: [sni]\r\nConnection: Keep-Alive\r\n\r\n",
-                transport = "SSL",
+                payloadTemplate = "GET / HTTP/1.1\r\nHost: [sni]\r\nX-Online-Host: [sni]\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Version: 13\r\nUser-Agent: [ua]\r\n\r\n",
+                transport = "WS",
                 recommendedGateway = "gw-aws-ohio-02",
                 isActive = true
             ),
@@ -515,11 +522,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         // Detección automática por operador SIM
         val detected = _carrierInfo.value
         val autoSelectedTweak = when {
-            detected.isClaro -> defaultTweaks.first { it.tweakId == "claro_fastdns_udp" }
-            detected.isMovistar -> defaultTweaks.first { it.tweakId == "movistar_wss_portal" }
+            detected.isMovistar -> defaultTweaks.first { it.tweakId == "movistar_ws_portal" }
+            detected.isClaro    -> defaultTweaks.first { it.tweakId == "claro_fastdns_udp" }
             else -> defaultTweaks.firstOrNull { it.tweakId == prefs.selectedTweakId } ?: defaultTweaks.first()
         }
         _selectedTweak.value = autoSelectedTweak
         prefs.selectedTweakId = autoSelectedTweak.tweakId
+
+        // Log de diagnóstico
+        TunnelLogManager.log("SIM detectada: ${detected.name} | Tweak auto: ${autoSelectedTweak.label}")
     }
 }

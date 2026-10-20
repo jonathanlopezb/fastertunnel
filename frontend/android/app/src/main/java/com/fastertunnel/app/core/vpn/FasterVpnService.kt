@@ -1,13 +1,10 @@
 package com.fastertunnel.app.core.vpn
 
 import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.net.VpnService
-import android.os.Build
 import android.os.ParcelFileDescriptor
 import androidx.core.app.NotificationCompat
 import com.fastertunnel.app.MainActivity
@@ -23,9 +20,6 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.io.FileInputStream
 import java.io.FileOutputStream
-import java.net.InetSocketAddress
-import java.nio.ByteBuffer
-import java.nio.channels.DatagramChannel
 
 class FasterVpnService : VpnService() {
 
@@ -39,8 +33,8 @@ class FasterVpnService : VpnService() {
         const val EXTRA_SNI = "extra_sni"
         const val EXTRA_PAYLOAD = "extra_payload"
 
-        private const val NOTIFICATION_ID = 1001
-        private const val CHANNEL_ID = "fastertunnel_vpn_channel"
+        private const val NOTIFICATION_ID = TunnelNotificationManager.NOTIFICATION_ID
+        private const val CHANNEL_ID = TunnelNotificationManager.CHANNEL_ID
 
         fun start(
             context: Context,
@@ -325,20 +319,8 @@ class FasterVpnService : VpnService() {
     }
 
     private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                getString(R.string.channel_name),
-                NotificationManager.IMPORTANCE_DEFAULT
-            ).apply {
-                description = getString(R.string.channel_description)
-                setShowBadge(false)
-                // Forzar que aparezca siempre en la barra de estado (no silenciada)
-                lockscreenVisibility = Notification.VISIBILITY_PUBLIC
-            }
-            val manager = getSystemService(NotificationManager::class.java)
-            manager.createNotificationChannel(channel)
-        }
+        // Delegar toda la lógica de canal al manager centralizado
+        TunnelNotificationManager.ensureChannel(this)
     }
 
     private fun createNotification(title: String, text: String): Notification {
