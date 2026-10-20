@@ -222,31 +222,10 @@ fun MainTunnelScreen(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = if (viewModel.prefs.isLoggedIn && viewModel.prefs.username.isNotBlank())
-                            "Usuario: ${viewModel.prefs.username}"
-                        else
-                            "Modo Debug: Acceso Libre (Sin Login)",
+                        text = "FasterTunnel v1.0 (Debug)",
                         color = TextWhite,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium
-                    )
-                }
-
-                IconButton(
-                    onClick = {
-                        if (viewModel.prefs.isLoggedIn) {
-                            viewModel.logout()
-                        } else {
-                            viewModel.openLoginDialog()
-                        }
-                    },
-                    modifier = Modifier.size(28.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.ExitToApp,
-                        contentDescription = "Cambiar cuenta",
-                        tint = TextMuted,
-                        modifier = Modifier.size(18.dp)
                     )
                 }
             }
@@ -552,11 +531,8 @@ fun MainTunnelScreen(
                         .clip(CircleShape)
                         .background(buttonColor)
                         .clickable {
-                            if (!viewModel.prefs.isLoggedIn) {
-                                viewModel.openLoginDialog()
-                            } else {
-                                onRequestVpnPermission()
-                            }
+                            // Modo Debug: Sin login — conectar directamente sin autenticación
+                            onRequestVpnPermission()
                         },
                     contentAlignment = Alignment.Center
                 ) {

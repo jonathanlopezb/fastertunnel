@@ -171,7 +171,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
             prefs.clearAuth()
             stopTunnel()
-            _showLoginDialog.value = true
+            // Modo Debug: No mostrar diálogo de login al cerrar sesión
+            // _showLoginDialog.value = true
             TunnelLogManager.log("Sesión cerrada.", isHighlight = true)
         }
     }
