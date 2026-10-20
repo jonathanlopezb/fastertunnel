@@ -3,15 +3,15 @@ package com.fastertunnel.app.core.data
 import android.content.Context
 import android.telephony.TelephonyManager
 
-object CarrierDetector {
+data class CarrierInfo(
+    val name: String,
+    val countryIso: String,
+    val isMovistar: Boolean,
+    val isClaro: Boolean,
+    val isTigo: Boolean
+)
 
-    data class CarrierInfo(
-        val name: String,
-        val countryIso: String,
-        val isMovistar: Boolean,
-        val isClaro: Boolean,
-        val isTigo: Boolean
-    )
+object CarrierDetector {
 
     fun detectCarrier(context: Context): CarrierInfo {
         return try {

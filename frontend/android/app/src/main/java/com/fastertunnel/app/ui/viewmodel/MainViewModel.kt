@@ -8,6 +8,8 @@ import com.fastertunnel.app.core.api.LoginRequest
 import com.fastertunnel.app.core.api.RetrofitClient
 import com.fastertunnel.app.core.api.ServerNodeDto
 import com.fastertunnel.app.core.api.TweakDto
+import com.fastertunnel.app.core.data.CarrierDetector
+import com.fastertunnel.app.core.data.CarrierInfo
 import com.fastertunnel.app.core.data.DeviceUtils
 import com.fastertunnel.app.core.data.PreferenceManager
 import com.fastertunnel.app.core.vpn.FasterVpnService
@@ -28,7 +30,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val logs = TunnelLogManager.logs
 
     private val _carrierInfo = MutableStateFlow(CarrierDetector.detectCarrier(application))
-    val carrierInfo: StateFlow<CarrierDetector.CarrierInfo> = _carrierInfo.asStateFlow()
+    val carrierInfo: StateFlow<CarrierInfo> = _carrierInfo.asStateFlow()
 
     private val _customSni = MutableStateFlow(prefs.customSni)
     val customSni: StateFlow<String> = _customSni.asStateFlow()

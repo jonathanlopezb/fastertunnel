@@ -25,7 +25,7 @@ import logging
 import sys
 import time
 
-LISTEN_HOST = '127.0.0.1'
+LISTEN_HOST = '0.0.0.0'
 LISTEN_PORT = 7300
 MAX_CLIENTS = 1000
 BUFFER_SIZE = 65535

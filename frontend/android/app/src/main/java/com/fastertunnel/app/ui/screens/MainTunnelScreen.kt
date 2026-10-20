@@ -68,6 +68,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.fastertunnel.app.R
+import com.fastertunnel.app.core.data.CarrierInfo
 import com.fastertunnel.app.core.vpn.TunnelStatus
 import com.fastertunnel.app.ui.theme.AmberAccent
 import com.fastertunnel.app.ui.theme.BorderGlow
