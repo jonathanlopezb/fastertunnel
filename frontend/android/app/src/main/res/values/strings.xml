@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">fasterTunnel</string>
+    <string name="channel_name">fasterTunnel VPN Service</string>
+    <string name="channel_description">Notificación persistente del estado del túnel activo</string>
+    <string name="vpn_connected">Túnel Activo</string>
+    <string name="vpn_connecting">Estableciendo conexión...</string>
+    <string name="vpn_authenticating">Autenticando sesión...</string>
+    <string name="vpn_disconnected">Desconectado</string>
+    <string name="vpn_disconnect">Desconectar</string>
+</resources>
