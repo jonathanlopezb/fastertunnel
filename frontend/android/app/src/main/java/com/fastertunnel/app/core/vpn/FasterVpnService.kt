@@ -5,6 +5,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.net.VpnService
 import android.os.Build
 import android.os.ParcelFileDescriptor
@@ -76,6 +77,7 @@ class FasterVpnService : VpnService() {
     private var heartbeatJob: Job? = null
     private var tunnelJob: Job? = null
     private var statsJob: Job? = null
+    private var probeJob: Job? = null
 
     private lateinit var prefs: PreferenceManager
     private var startTimeMs: Long = 0
@@ -180,6 +182,7 @@ class FasterVpnService : VpnService() {
                     payloadTemplate = payload,
                     vpnService = this@FasterVpnService  // para protect() en el socket del gateway
                 )
+                startConnectivityProbe()
                 tunnelBridge?.execute()
             }
 
@@ -230,6 +233,44 @@ class FasterVpnService : VpnService() {
                     }
                 }
                 delay(30000) // Heartbeat cada 30 segundos
+            }
+        }
+    }
+
+    private fun startConnectivityProbe() {
+        probeJob?.cancel()
+        probeJob = serviceScope.launch {
+            delay(2500)
+            TunnelLogManager.log("[PROBE] Verificando acceso real a internet por el túnel...", isHighlight = true)
+            var success = false
+            for (attempt in 1..3) {
+                if (!isActive) return@launch
+                try {
+                    val url = java.net.URL("https://gw.fastertunnel.site")
+                    val conn = url.openConnection() as java.net.HttpURLConnection
+                    conn.connectTimeout = 6000
+                    conn.readTimeout = 6000
+                    conn.instanceFollowRedirects = true
+                    val code = conn.responseCode
+                    if (code in 200..399) {
+                        TunnelLogManager.log("[PROBE] ¡Internet verificado con éxito! (HTTP $code - gw.fastertunnel.site)", isHighlight = true)
+                        success = true
+                        break
+                    }
+                } catch (e: Exception) {
+                    TunnelLogManager.log("[PROBE] Comprobando internet (intento $attempt/3): ${e.message}")
+                    delay(2000)
+                }
+            }
+
+            if (success) {
+                TunnelLogManager.log("[PROBE] Mostrando página de FasterTunnel en navegador...", isHighlight = true)
+                try {
+                    val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://gw.fastertunnel.site")).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                    startActivity(browserIntent)
+                } catch (_: Exception) {}
             }
         }
     }
@@ -290,6 +331,7 @@ class FasterVpnService : VpnService() {
         TunnelLogManager.updateStatus(TunnelStatus.DISCONNECTING)
         TunnelLogManager.log("Cerrando túnel: $reason")
 
+        probeJob?.cancel()
         heartbeatJob?.cancel()
         tunnelJob?.cancel()
         statsJob?.cancel()

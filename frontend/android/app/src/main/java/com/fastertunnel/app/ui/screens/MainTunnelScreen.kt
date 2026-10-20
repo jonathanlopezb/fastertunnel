@@ -1,6 +1,8 @@
 package com.fastertunnel.app.ui.screens
 
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -35,6 +37,7 @@ import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExitToApp
+import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material.icons.filled.Refresh
@@ -663,6 +666,43 @@ fun MainTunnelScreen(
                         text = "Tiempo",
                         color = TextMuted,
                         fontSize = 11.sp
+                    )
+                }
+            }
+
+            // ── Botón para Probar Conexión en Vivo abriendo fastertunnel.site ─
+            if (isConnected) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(CyanPrimary.copy(alpha = 0.15f))
+                        .border(1.dp, CyanPrimary, RoundedCornerShape(12.dp))
+                        .clickable {
+                            try {
+                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://gw.fastertunnel.site")).apply {
+                                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                }
+                                context.startActivity(intent)
+                            } catch (_: Exception) {}
+                        }
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Language,
+                        contentDescription = null,
+                        tint = CyanPrimary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Probar Conexión (Abrir fastertunnel.site)",
+                        color = CyanPrimary,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
                     )
                 }
             }
