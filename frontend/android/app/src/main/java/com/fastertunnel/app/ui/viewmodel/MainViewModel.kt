@@ -85,10 +85,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun login(user: String, pass: String, remember: Boolean) {
+    private val _isDeviceLimitReached = MutableStateFlow(false)
+    val isDeviceLimitReached: StateFlow<Boolean> = _isDeviceLimitReached.asStateFlow()
+
+    fun login(user: String, pass: String, remember: Boolean, forceDisconnect: Boolean = false) {
         viewModelScope.launch {
             _isLoggingIn.value = true
             _loginError.value = null
+            _isDeviceLimitReached.value = false
 
             val context = getApplication<Application>()
             val hwid = DeviceUtils.getDeviceHardwareId(context)
@@ -100,7 +104,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             username = user.trim(),
                             password = pass.trim(),
                             deviceId = hwid,
-                            platform = "android"
+                            platform = "android",
+                            forceDisconnect = forceDisconnect
                         )
                     )
                 }
@@ -111,6 +116,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     prefs.sessionId = loginData.sessionId
                     prefs.username = user
                     prefs.isLoggedIn = true
+                    _isDeviceLimitReached.value = false
                     if (remember) {
                         prefs.password = pass
                         prefs.rememberCredentials = true
@@ -125,9 +131,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
                     loadServersAndTweaks()
                 } else {
-                    val err = response.body()?.message ?: "Credenciales inválidas"
-                    _loginError.value = err
-                    TunnelLogManager.log("Error de autenticación: $err", isError = true)
+                    if (response.code() == 409) {
+                        _isDeviceLimitReached.value = true
+                        _loginError.value = "Ya tienes una sesión abierta en otro dispositivo. Cierra la sesión en tu otro teléfono para poder ingresar."
+                        TunnelLogManager.log("Acceso denegado: cuenta activa en otro dispositivo.", isError = true)
+                    } else {
+                        val err = response.body()?.message ?: "Credenciales inválidas"
+                        _loginError.value = err
+                        TunnelLogManager.log("Error de autenticación: $err", isError = true)
+                    }
                 }
             } catch (e: Exception) {
                 _loginError.value = "Error al conectar con Render backend: ${e.localizedMessage}"

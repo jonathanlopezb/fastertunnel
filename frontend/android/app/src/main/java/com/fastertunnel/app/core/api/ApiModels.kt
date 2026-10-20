@@ -22,7 +22,8 @@ data class LoginRequest(
     @SerializedName("username") val username: String,
     @SerializedName("password") val password: String,
     @SerializedName("device_id") val deviceId: String,
-    @SerializedName("platform") val platform: String = "android"
+    @SerializedName("platform") val platform: String = "android",
+    @SerializedName("force_disconnect") val forceDisconnect: Boolean = false
 )
 
 data class LoginData(

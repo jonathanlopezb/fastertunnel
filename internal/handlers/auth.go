@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -20,10 +21,11 @@ func NewAuthHandler(authService *services.AuthService) *AuthHandler {
 
 // loginInput es el body de la petición POST /auth/login.
 type loginInput struct {
-	Username string `json:"username" binding:"required"`
-	Password string `json:"password" binding:"required"`
-	DeviceID string `json:"device_id" binding:"required"`
-	Platform string `json:"platform"`
+	Username        string `json:"username" binding:"required"`
+	Password        string `json:"password" binding:"required"`
+	DeviceID        string `json:"device_id" binding:"required"`
+	Platform        string `json:"platform"`
+	ForceDisconnect bool   `json:"force_disconnect"`
 }
 
 // Login maneja el inicio de sesión.
@@ -36,15 +38,24 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	}
 
 	req := &services.LoginRequest{
-		Username: input.Username,
-		Password: input.Password,
-		DeviceID: input.DeviceID,
-		Platform: input.Platform,
-		ClientIP: c.ClientIP(),
+		Username:        input.Username,
+		Password:        input.Password,
+		DeviceID:        input.DeviceID,
+		Platform:        input.Platform,
+		ForceDisconnect: input.ForceDisconnect,
+		ClientIP:        c.ClientIP(),
 	}
 
 	result, err := h.authService.Login(req)
 	if err != nil {
+		if errors.Is(err, services.ErrAnotherDeviceActive) {
+			c.JSON(http.StatusConflict, response.Response{
+				Success: false,
+				Message: "another_device_active",
+				Error:   err.Error(),
+			})
+			return
+		}
 		response.Unauthorized(c, err.Error())
 		return
 	}

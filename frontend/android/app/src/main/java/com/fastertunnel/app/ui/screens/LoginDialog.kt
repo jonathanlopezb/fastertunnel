@@ -54,8 +54,9 @@ fun LoginDialog(
     rememberCredentials: Boolean,
     isLoading: Boolean,
     errorMessage: String?,
+    isDeviceLimitReached: Boolean = false,
     onDismiss: () -> Unit,
-    onLogin: (username: String, password: String, remember: Boolean) -> Unit
+    onLogin: (username: String, password: String, remember: Boolean, forceDisconnect: Boolean) -> Unit
 ) {
     var username by remember { mutableStateOf(initialUsername) }
     var password by remember { mutableStateOf(initialPassword) }
@@ -178,40 +179,71 @@ fun LoginDialog(
                 }
 
                 if (!errorMessage.isNullOrEmpty()) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = errorMessage,
-                        color = StatusRed,
-                        fontSize = 12.sp
-                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Card(
+                        shape = RoundedCornerShape(10.dp),
+                        colors = CardDefaults.cardColors(containerColor = StatusRed.copy(alpha = 0.2f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = errorMessage,
+                            color = StatusRed,
+                            fontSize = 12.sp,
+                            lineHeight = 16.sp,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.padding(10.dp)
+                        )
+                    }
                 }
 
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(18.dp))
 
-                Button(
-                    onClick = { onLogin(username, password, rememberMe) },
-                    enabled = !isLoading && username.isNotBlank() && password.isNotBlank(),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = CyanPrimary,
-                        contentColor = TextDark
-                    ),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(50.dp)
-                ) {
-                    if (isLoading) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(22.dp),
-                            color = TextDark,
-                            strokeWidth = 2.dp
-                        )
-                    } else {
+                if (isDeviceLimitReached) {
+                    // Botón para cerrar sesión en el otro dispositivo si el usuario lo desea
+                    Button(
+                        onClick = { onLogin(username, password, rememberMe, true) },
+                        enabled = !isLoading,
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = AmberAccent,
+                            contentColor = TextDark
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp)
+                    ) {
                         Text(
-                            text = "CONECTAR CUENTA",
+                            text = "DESCONECTAR OTRO TELÉFONO",
                             fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp
+                            fontSize = 13.sp
                         )
+                    }
+                } else {
+                    Button(
+                        onClick = { onLogin(username, password, rememberMe, false) },
+                        enabled = !isLoading && username.isNotBlank() && password.isNotBlank(),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = CyanPrimary,
+                            contentColor = TextDark
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp)
+                    ) {
+                        if (isLoading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(22.dp),
+                                color = TextDark,
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Text(
+                                text = "CONECTAR CUENTA",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp
+                            )
+                        }
                     }
                 }
             }

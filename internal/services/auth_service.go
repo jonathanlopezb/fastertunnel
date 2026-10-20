@@ -27,13 +27,17 @@ func NewAuthService(jwtSecret string, jwtExpiry int) *AuthService {
 	}
 }
 
+// ErrAnotherDeviceActive es retornado cuando otro dispositivo ya tiene una sesión activa (política Netflix).
+var ErrAnotherDeviceActive = errors.New("Ya tienes una sesión abierta en otro dispositivo. Cierra la sesión en tu otro teléfono para poder ingresar.")
+
 // LoginRequest es el DTO de entrada para el login.
 type LoginRequest struct {
-	Username string `json:"username" binding:"required"`
-	Password string `json:"password" binding:"required"`
-	DeviceID string `json:"device_id" binding:"required"`
-	Platform string `json:"platform"`
-	ClientIP string `json:"-"`
+	Username        string `json:"username" binding:"required"`
+	Password        string `json:"password" binding:"required"`
+	DeviceID        string `json:"device_id" binding:"required"`
+	Platform        string `json:"platform"`
+	ForceDisconnect bool   `json:"force_disconnect"` // Si es true, permite desalojar la otra sesión
+	ClientIP        string `json:"-"`
 }
 
 // LoginResponse es el DTO de respuesta tras un login exitoso.
@@ -79,11 +83,28 @@ func (s *AuthService) Login(req *LoginRequest) (*LoginResponse, error) {
 		return nil, errors.New("invalid credentials")
 	}
 
-	// 4. PREEMPTION: Terminar cualquier sesión activa existente del usuario.
-	//    Esto garantiza que solo UNA sesión esté activa a la vez.
-	database.DB.Model(&models.Session{}).
-		Where("user_id = ? AND status = ?", user.ID, models.SessionActive).
-		Update("status", models.SessionTerminated)
+	// 4. POLÍTICA ESTILO NETFLIX: Verificar si existe otra sesión activa en otro dispositivo.
+	var existingSession models.Session
+	errFind := database.DB.Where(
+		"user_id = ? AND status = ?",
+		user.ID,
+		models.SessionActive,
+	).First(&existingSession).Error
+
+	if errFind == nil {
+		// La sesión está activa en la base de datos.
+		// Verificamos si sigue "viva" por el heartbeat (últimos 60 segundos).
+		isSessionAlive := time.Since(existingSession.LastHeartbeatAt) < 60*time.Second
+
+		if isSessionAlive && existingSession.DeviceID != req.DeviceID && !req.ForceDisconnect {
+			// OTRO dispositivo tiene la sesión abierta activamente -> BLOQUEAR y advertir
+			return nil, ErrAnotherDeviceActive
+		}
+
+		// Si es el mismo dispositivo, si la sesión anterior expiró (sin heartbeat > 60s),
+		// o si el usuario eligió ForceDisconnect, cerramos la sesión previa.
+		database.DB.Model(&existingSession).Update("status", models.SessionTerminated)
+	}
 
 	// 5. Crear nueva sesión.
 	sessionID := uuid.New().String()

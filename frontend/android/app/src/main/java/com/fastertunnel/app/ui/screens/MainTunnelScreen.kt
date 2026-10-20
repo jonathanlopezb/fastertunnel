@@ -103,6 +103,7 @@ fun MainTunnelScreen(
     val showLogin by viewModel.showLoginDialog.collectAsState()
     val isLoggingIn by viewModel.isLoggingIn.collectAsState()
     val loginError by viewModel.loginError.collectAsState()
+    val isDeviceLimitReached by viewModel.isDeviceLimitReached.collectAsState()
 
     var showServerSheet by remember { mutableStateOf(false) }
     var showTweakSheet by remember { mutableStateOf(false) }
@@ -583,8 +584,9 @@ fun MainTunnelScreen(
                 rememberCredentials = viewModel.prefs.rememberCredentials,
                 isLoading = isLoggingIn,
                 errorMessage = loginError,
+                isDeviceLimitReached = isDeviceLimitReached,
                 onDismiss = { viewModel.dismissLoginDialog() },
-                onLogin = { u, p, rem -> viewModel.login(u, p, rem) }
+                onLogin = { u, p, rem, force -> viewModel.login(u, p, rem, force) }
             )
         }
 
