@@ -1,5 +1,6 @@
 package com.fastertunnel.app.core.vpn
 
+import android.net.VpnService
 import android.os.ParcelFileDescriptor
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -24,7 +25,9 @@ class TunnelConnectionBridge(
     private val port: Int,
     private val transport: String,
     private val sni: String?,
-    private val payloadTemplate: String?
+    private val payloadTemplate: String?,
+    // VpnService reference para protect() — excluye el socket del túnel de ser enrutado por la VPN misma
+    private val vpnService: VpnService? = null
 ) {
 
     private var activeSocket: Socket? = null
@@ -40,7 +43,15 @@ class TunnelConnectionBridge(
             if (transport == "FAST_DNS" || transport == "DNS" || transport == "UDP_CUSTOM" || transport == "UDP") {
                 val targetPort = if (port in listOf(53, 7300, 80)) port else 53
                 TunnelLogManager.log("[FastDNS] Conectando a $host:$targetPort vía UDP (Bypass Claro/Movistar)...", isHighlight = true)
-                bridgeTunAndUdp(vpnInterface.fileDescriptor, host, targetPort)
+                val channel = DatagramChannel.open()
+                channel.configureBlocking(true)
+                // protect() evita que los paquetes UDP del gateway vuelvan a entrar al TUN (loop infinito)
+                try { vpnService?.protect(channel.socket()) } catch (_: Exception) {}
+                channel.connect(InetSocketAddress(host, targetPort))
+                activeDatagramChannel = channel
+                TunnelLogManager.log("[FastDNS] Canal UDP $targetPort conectado exitosamente", isHighlight = true)
+                TunnelLogManager.updateStatus(TunnelStatus.CONNECTED)
+                bridgeTunAndUdp(vpnInterface.fileDescriptor, channel)
                 return@withContext
             }
 
@@ -49,7 +60,11 @@ class TunnelConnectionBridge(
             val socket: Socket = when (transport) {
                 "SSL", "TLS", "WSS" -> {
                     TunnelLogManager.log("[SSL] Negociando TLS con SNI Spoof: $effectiveSni...")
-                    val sslSocket = SslSniSocketFactory.createSniSslSocket(
+                    val rawSocket = Socket()
+                    // protect() impide que el socket TLS del gateway sea redirigido por la VPN misma
+                    try { vpnService?.protect(rawSocket) } catch (_: Exception) {}
+                    val sslSocket = SslSniSocketFactory.createSniSslSocketFromRaw(
+                        rawSocket = rawSocket,
                         host = host,
                         port = port,
                         sniHost = effectiveSni,
@@ -61,6 +76,8 @@ class TunnelConnectionBridge(
                 else -> {
                     TunnelLogManager.log("[TCP] Conectando a $host:$port...")
                     val tcpSocket = Socket()
+                    // protect() impide que TCP del gateway sea redirigido por la VPN misma
+                    try { vpnService?.protect(tcpSocket) } catch (_: Exception) {}
                     tcpSocket.connect(InetSocketAddress(host, port), 10000)
                     tcpSocket
                 }
@@ -109,15 +126,7 @@ class TunnelConnectionBridge(
         }
     }
 
-    private fun bridgeTunAndUdp(tunFd: FileDescriptor, host: String, targetPort: Int) {
-        val channel = DatagramChannel.open()
-        channel.configureBlocking(true)
-        channel.connect(InetSocketAddress(host, targetPort))
-        activeDatagramChannel = channel
-
-        TunnelLogManager.log("[FastDNS] Canal UDP $targetPort conectado exitosamente", isHighlight = true)
-        TunnelLogManager.updateStatus(TunnelStatus.CONNECTED)
-
+    private fun bridgeTunAndUdp(tunFd: FileDescriptor, channel: DatagramChannel) {
         val tunIn = FileInputStream(tunFd)
         val tunOut = FileOutputStream(tunFd)
 

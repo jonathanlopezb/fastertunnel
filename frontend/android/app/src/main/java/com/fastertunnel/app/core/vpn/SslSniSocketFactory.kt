@@ -36,7 +36,25 @@ object SslSniSocketFactory {
     ): SSLSocket {
         val rawSocket = Socket()
         rawSocket.connect(InetSocketAddress(host, port), timeoutMs)
+        return wrapWithSni(rawSocket, sniHost, port)
+    }
 
+    /**
+     * Variante que acepta un socket ya creado y opcionalmente protegido via VpnService.protect().
+     * Esto es necesario para evitar que el socket del gateway sea enrutado por el propio TUN.
+     */
+    fun createSniSslSocketFromRaw(
+        rawSocket: Socket,
+        host: String,
+        port: Int,
+        sniHost: String,
+        timeoutMs: Int = 10000
+    ): SSLSocket {
+        rawSocket.connect(InetSocketAddress(host, port), timeoutMs)
+        return wrapWithSni(rawSocket, sniHost, port)
+    }
+
+    private fun wrapWithSni(rawSocket: Socket, sniHost: String, port: Int): SSLSocket {
         val sslSocket = sslContext.socketFactory.createSocket(
             rawSocket,
             sniHost,

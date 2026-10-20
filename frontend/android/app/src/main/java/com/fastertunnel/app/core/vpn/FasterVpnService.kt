@@ -134,9 +134,13 @@ class FasterVpnService : VpnService() {
 
         try {
             TunnelLogManager.updateStatus(TunnelStatus.AUTHENTICATING)
-            TunnelLogManager.log("Verificando arrendamiento de sesión en Render backend...")
+            TunnelLogManager.log("Construyendo interfaz TUN virtual...")
 
             // Configuración de la interfaz TUN virtual de Android
+            // addDisallowedApplication excluye la propia app de la ruta VPN:
+            // así el heartbeat al backend Render siempre usa la red real del operador,
+            // evitando el chicken-and-egg loop donde el heartbeat falla porque el
+            // túnel aún no está establecido.
             val builder = Builder()
                 .setSession("fasterTunnel - $serverName")
                 .addAddress("10.8.0.2", 24)
@@ -145,6 +149,11 @@ class FasterVpnService : VpnService() {
                 .addRoute("0.0.0.0", 0)
                 .setMtu(1500)
                 .setBlocking(false)
+
+            try {
+                // Excluir la propia app de la VPN: el heartbeat al backend usa la red real
+                builder.addDisallowedApplication(packageName)
+            } catch (_: Exception) {}
 
             vpnInterface = builder.establish()
             if (vpnInterface == null) {
@@ -172,7 +181,8 @@ class FasterVpnService : VpnService() {
                     port = port,
                     transport = transport,
                     sni = sni,
-                    payloadTemplate = payload
+                    payloadTemplate = payload,
+                    vpnService = this@FasterVpnService  // para protect() en el socket del gateway
                 )
                 tunnelBridge?.execute()
             }
@@ -187,38 +197,43 @@ class FasterVpnService : VpnService() {
     private fun startHeartbeatLoop() {
         heartbeatJob?.cancel()
         heartbeatJob = serviceScope.launch {
+            // Primera comprobación después de 30 s para dar tiempo al túnel a establecerse
+            delay(30000)
             while (isActive) {
-                delay(15000) // Heartbeat cada 15 segundos
                 val token = prefs.token
                 val sessionId = prefs.sessionId
 
-                if (token.isNullOrEmpty() || sessionId.isNullOrEmpty()) {
-                    continue
-                }
+                if (!token.isNullOrEmpty() && !sessionId.isNullOrEmpty()) {
+                    try {
+                        val response = RetrofitClient.api.heartbeat(
+                            token = "Bearer $token",
+                            request = HeartbeatRequest(sessionId = sessionId)
+                        )
 
-                try {
-                    val response = RetrofitClient.api.heartbeat(
-                        token = "Bearer $token",
-                        request = HeartbeatRequest(sessionId = sessionId)
-                    )
-
-                    if (!response.isSuccessful) {
-                        if (response.code() == 401) {
-                            TunnelLogManager.log(
-                                "ALERTA: Tu sesión fue iniciada en otro dispositivo. Desconectando...",
-                                isError = true,
-                                isHighlight = true
-                            )
-                            TunnelLogManager.updateStatus(TunnelStatus.PREEMPTED)
-                            disconnectTunnel("Sesión duplicada: iniciada en otro teléfono")
-                            break
+                        if (!response.isSuccessful) {
+                            if (response.code() == 401) {
+                                // Solo desconectar por sesión duplicada (Netflix lockout)
+                                TunnelLogManager.log(
+                                    "ALERTA: Tu sesión fue iniciada en otro dispositivo. Desconectando...",
+                                    isError = true,
+                                    isHighlight = true
+                                )
+                                TunnelLogManager.updateStatus(TunnelStatus.PREEMPTED)
+                                disconnectTunnel("Sesión duplicada: iniciada en otro teléfono")
+                                break
+                            }
+                            // Otros errores HTTP: ignorar, el túnel sigue activo
+                            TunnelLogManager.log("[Heartbeat] Backend respondió ${response.code()} — túnel activo")
+                        } else {
+                            TunnelLogManager.log("[Heartbeat] Sesión válida en Render backend ✓")
                         }
-                    } else {
-                        TunnelLogManager.log("[Heartbeat] Sesión válida en Render backend")
+                    } catch (e: Exception) {
+                        // Error de red (backend no accesible desde dentro del túnel)
+                        // No es fatal — el túnel funciona igual sin esto
+                        TunnelLogManager.log("[Heartbeat] Backend no alcanzable (normal): ${e.message}")
                     }
-                } catch (e: Exception) {
-                    TunnelLogManager.log("[Heartbeat] Timeout con el backend: ${e.message}")
                 }
+                delay(30000) // Heartbeat cada 30 segundos
             }
         }
     }
@@ -314,10 +329,12 @@ class FasterVpnService : VpnService() {
             val channel = NotificationChannel(
                 CHANNEL_ID,
                 getString(R.string.channel_name),
-                NotificationManager.IMPORTANCE_LOW
+                NotificationManager.IMPORTANCE_DEFAULT
             ).apply {
                 description = getString(R.string.channel_description)
                 setShowBadge(false)
+                // Forzar que aparezca siempre en la barra de estado (no silenciada)
+                lockscreenVisibility = Notification.VISIBILITY_PUBLIC
             }
             val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(channel)

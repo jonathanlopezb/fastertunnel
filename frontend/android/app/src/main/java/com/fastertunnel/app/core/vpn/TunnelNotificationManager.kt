@@ -24,10 +24,11 @@ object TunnelNotificationManager {
                 val channel = NotificationChannel(
                     CHANNEL_ID,
                     CHANNEL_NAME,
-                    NotificationManager.IMPORTANCE_LOW
+                    NotificationManager.IMPORTANCE_DEFAULT
                 ).apply {
                     description = "Muestra el estado de conexión del túnel y controles directos"
                     setShowBadge(false)
+                    lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
                 }
                 manager.createNotificationChannel(channel)
             }
@@ -67,8 +68,9 @@ object TunnelNotificationManager {
             .setSmallIcon(R.drawable.logo)
             .setContentIntent(openAppPending)
             .setOngoing(true)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
-            .addAction(R.drawable.logo, "CONECTAR", connectPending)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .addAction(R.drawable.logo, "⚡ CONECTAR", connectPending)
             .build()
 
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -111,8 +113,10 @@ object TunnelNotificationManager {
             .setSmallIcon(R.drawable.logo)
             .setContentIntent(openAppPending)
             .setOngoing(true)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
-            .addAction(R.drawable.logo, "DESCONECTAR", disconnectPending)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
+            .addAction(R.drawable.logo, "✕ DESCONECTAR", disconnectPending)
             .build()
     }
 

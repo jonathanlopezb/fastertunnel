@@ -235,12 +235,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
             "UDP" -> {
-                val targetTweak = defaultTweaks.firstOrNull { it.transport == "UDP_CUSTOM" }
-                    ?: defaultTweaks.firstOrNull()
+                // UDP mode: para Movistar usar WSS portal, para Claro FastDNS UDP
+                val targetTweak = if (detected.isMovistar) {
+                    defaultTweaks.firstOrNull { it.tweakId == "movistar_wss_portal" }
+                        ?: defaultTweaks.firstOrNull { it.transport == "WSS" }
+                } else {
+                    defaultTweaks.firstOrNull { it.tweakId == "claro_fastdns_udp" }
+                        ?: defaultTweaks.firstOrNull { it.transport == "FAST_DNS" }
+                }
                 targetTweak?.let {
                     _selectedTweak.value = it
                     prefs.selectedTweakId = it.tweakId
-                    prefs.selectedTransport = "UDP_CUSTOM"
+                    prefs.selectedTransport = it.transport
                 }
             }
         }
@@ -272,14 +278,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         val tweak = _selectedTweak.value
         val effectiveTransport = tweak?.transport ?: server.transport
-        val effectivePort = if (effectiveTransport == "FAST_DNS") 53 else server.port
+
+        // Ajustar servidor y puerto según el tweak seleccionado
+        val effectiveServer = if (tweak != null && tweak.recommendedGateway != null) {
+            _servers.value.firstOrNull { it.nodeId == tweak.recommendedGateway } ?: server
+        } else {
+            server
+        }
+
+        val effectivePort = when {
+            effectiveTransport == "FAST_DNS" -> 53
+            effectiveTransport == "WSS" -> 80   // ws-relay en EC2 escucha port 80
+            else -> effectiveServer.port
+        }
         val effectiveSni = tweak?.sniSpoof?.ifBlank { _customSni.value } ?: _customSni.value
         val payload = tweak?.payloadTemplate
 
         // Persistir en preferencias para el botón rápido de la notificación
-        prefs.selectedServerHost = server.host
+        prefs.selectedServerHost = effectiveServer.host
         prefs.selectedServerPort = effectivePort
-        prefs.selectedServerName = server.name
+        prefs.selectedServerName = effectiveServer.name
         prefs.selectedTransport = effectiveTransport
 
         TunnelLogManager.log("SIM Operador: ${_carrierInfo.value.name} (${_carrierInfo.value.countryIso})")
@@ -291,9 +309,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         FasterVpnService.start(
             context = context,
-            host = server.host,
+            host = effectiveServer.host,
             port = effectivePort,
-            serverName = server.name,
+            serverName = effectiveServer.name,
             transport = effectiveTransport,
             sni = effectiveSni,
             payload = payload
@@ -421,6 +439,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             ),
             TweakDto(
                 id = 2,
+                tweakId = "movistar_wss_portal",
+                label = "Movistar Colombia WSS (Portal - Sin Saldo)",
+                carrier = "Movistar",
+                country = "CO",
+                sniSpoof = "mi.movistar.com.co",
+                payloadTemplate = "GET / HTTP/1.1\r\nHost: [sni]\r\nX-Online-Host: [sni]\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nUser-Agent: [ua]\r\n\r\n",
+                transport = "WSS",
+                recommendedGateway = "gw-aws-ohio-02",
+                isActive = true
+            ),
+            TweakDto(
+                id = 3,
+                tweakId = "movistar_wss_recargas",
+                label = "Movistar Colombia WSS (Recargas SNI)",
+                carrier = "Movistar",
+                country = "CO",
+                sniSpoof = "recargas.movistar.com.co",
+                payloadTemplate = "GET / HTTP/1.1\r\nHost: [sni]\r\nX-Online-Host: [sni]\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nUser-Agent: [ua]\r\n\r\n",
+                transport = "WSS",
+                recommendedGateway = "gw-aws-ohio-02",
+                isActive = true
+            ),
+            TweakDto(
+                id = 4,
                 tweakId = "movistar_fastdns_udp",
                 label = "Movistar FastDNS (UDP 53 - Sin Saldo)",
                 carrier = "Movistar",
@@ -432,7 +474,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 isActive = true
             ),
             TweakDto(
-                id = 3,
+                id = 5,
                 tweakId = "movistar_whatsapp_sni",
                 label = "Movistar WhatsApp Ilimitado (Auto-Inyección)",
                 carrier = "Movistar",
@@ -444,7 +486,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 isActive = true
             ),
             TweakDto(
-                id = 4,
+                id = 6,
                 tweakId = "claro_portal_ssl",
                 label = "Claro Colombia Portal (SSL Spoof)",
                 carrier = "Claro",
@@ -456,7 +498,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 isActive = true
             ),
             TweakDto(
-                id = 5,
+                id = 7,
                 tweakId = "ssl_sni_custom",
                 label = "Modo SNI Personalizado (Manual)",
                 carrier = "Cualquiera",
@@ -474,7 +516,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val detected = _carrierInfo.value
         val autoSelectedTweak = when {
             detected.isClaro -> defaultTweaks.first { it.tweakId == "claro_fastdns_udp" }
-            detected.isMovistar -> defaultTweaks.first { it.tweakId == "movistar_fastdns_udp" }
+            detected.isMovistar -> defaultTweaks.first { it.tweakId == "movistar_wss_portal" }
             else -> defaultTweaks.firstOrNull { it.tweakId == prefs.selectedTweakId } ?: defaultTweaks.first()
         }
         _selectedTweak.value = autoSelectedTweak
