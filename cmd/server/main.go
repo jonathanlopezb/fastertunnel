@@ -109,19 +109,19 @@ func seedDefaultServersAndTweaks() {
 	if serverCount == 0 {
 		servers := []models.ServerNode{
 			{
-				NodeID:       "gw-us-01",
-				Name:         "Estados Unidos #1 (Gaming & UDP)",
+				NodeID:       "gw-aws-ohio-01",
+				Name:         "🔥 AWS Ohio #1 - Gateway Principal (WS+UDP)",
 				CountryCode:  "US",
 				FlagEmoji:    "🇺🇸",
-				Host:         "1.1.1.1", // DNS/Cloudflare anycast para pruebas inmediatas
-				Port:         443,
+				Host:         "3.142.187.253", // AWS EC2 us-east-2 Gateway real
+				Port:         80,
 				Transport:    models.TransportWSS,
 				SNIHost:      "web.whatsapp.net",
 				IsActive:     true,
 				IsPremium:    false,
 				PingMs:       38,
-				MaxUsers:     200,
-				CurrentUsers: 14,
+				MaxUsers:     500,
+				CurrentUsers: 0,
 			},
 			{
 				NodeID:       "gw-movistar-02",
