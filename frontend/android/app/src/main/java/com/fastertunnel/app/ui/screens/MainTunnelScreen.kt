@@ -36,7 +36,6 @@ import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PowerSettingsNew
@@ -109,11 +108,6 @@ fun MainTunnelScreen(
 
     val carrier by viewModel.carrierInfo.collectAsState()
     val customSni by viewModel.customSni.collectAsState()
-
-    val showLogin by viewModel.showLoginDialog.collectAsState()
-    val isLoggingIn by viewModel.isLoggingIn.collectAsState()
-    val loginError by viewModel.loginError.collectAsState()
-    val isDeviceLimitReached by viewModel.isDeviceLimitReached.collectAsState()
 
     var showServerSheet by remember { mutableStateOf(false) }
     var showTweakSheet by remember { mutableStateOf(false) }
@@ -731,20 +725,6 @@ fun MainTunnelScreen(
                     }
                 }
             }
-        }
-
-        // ── Diálogo de Login Modal ───────────────────────────────────────────
-        if (showLogin) {
-            LoginDialog(
-                initialUsername = viewModel.prefs.username,
-                initialPassword = viewModel.prefs.password,
-                rememberCredentials = viewModel.prefs.rememberCredentials,
-                isLoading = isLoggingIn,
-                errorMessage = loginError,
-                isDeviceLimitReached = isDeviceLimitReached,
-                onDismiss = { viewModel.dismissLoginDialog() },
-                onLogin = { u, p, rem, force -> viewModel.login(u, p, rem, force) }
-            )
         }
 
         // ── Sheets de Selección ──────────────────────────────────────────────

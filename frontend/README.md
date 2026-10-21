@@ -31,7 +31,7 @@ frontend/
     │   │   │   ├── core/jni/          # JNI bridge a motor nativo
     │   │   │   ├── data/api/          # Retrofit clients
     │   │   │   ├── data/local/        # Room DB
-    │   │   │   ├── domain/usecase/    # Login, StartTunnel, Heartbeat
+    │   │   │   ├── domain/usecase/    # Configuración pública, StartTunnel
     │   │   │   └── presentation/      # Compose Screens + ViewModels
     │   │   └── cpp/                   # Motor C++/Rust nativo
     │   └── build.gradle.kts
@@ -40,8 +40,7 @@ frontend/
 
 ## Pantallas Principales
 
-1. **LoginScreen** — Autenticación con usuario/contraseña + almacenamiento seguro de token
-2. **MainTunnelScreen** — Botón de conexión ON/OFF, estado del túnel, latencia RTT en tiempo real
-3. **ServerSelectScreen** — Lista de nodos por país con ping estimado y selector de protocolo
-4. **TweakSelectScreen** — Configuraciones de payload por operadora/carrier
-5. **SettingsScreen** — Kill Switch, Split Tunneling, DNS anti-leak, tema de la app
+1. **MainTunnelScreen** — Inicio directo, botón de conexión ON/OFF, estado del túnel y latencia RTT
+2. **ServerSelectSheet** — Lista de nodos por país y selector de protocolo
+3. **TweakSelectSheet** — Configuraciones de payload por operadora/carrier
+4. **SettingsScreen** — Kill Switch, Split Tunneling, DNS anti-leak y tema de la app

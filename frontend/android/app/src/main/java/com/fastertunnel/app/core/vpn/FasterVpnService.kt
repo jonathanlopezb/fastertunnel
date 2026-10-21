@@ -164,9 +164,6 @@ class FasterVpnService : VpnService() {
             startTimeMs = System.currentTimeMillis()
             updateNotification(serverName, "Conectado y seguro")
 
-            // Iniciar bucle de heartbeat contra backend en Render
-            startHeartbeatLoop()
-
             // Iniciar monitor de tráfico y barra de notificaciones
             startTrafficMonitor(serverName)
 

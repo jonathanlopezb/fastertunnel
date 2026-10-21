@@ -4,13 +4,11 @@ import android.app.Application
 import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.fastertunnel.app.core.api.LoginRequest
 import com.fastertunnel.app.core.api.RetrofitClient
 import com.fastertunnel.app.core.api.ServerNodeDto
 import com.fastertunnel.app.core.api.TweakDto
 import com.fastertunnel.app.core.data.CarrierDetector
 import com.fastertunnel.app.core.data.CarrierInfo
-import com.fastertunnel.app.core.data.DeviceUtils
 import com.fastertunnel.app.core.data.PreferenceManager
 import com.fastertunnel.app.core.vpn.FasterVpnService
 import com.fastertunnel.app.core.vpn.TunnelLogManager
@@ -53,22 +51,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _selectedTweak = MutableStateFlow<TweakDto?>(null)
     val selectedTweak: StateFlow<TweakDto?> = _selectedTweak.asStateFlow()
 
-    private val _isLoggingIn = MutableStateFlow(false)
-    val isLoggingIn: StateFlow<Boolean> = _isLoggingIn.asStateFlow()
-
-    private val _loginError = MutableStateFlow<String?>(null)
-    val loginError: StateFlow<String?> = _loginError.asStateFlow()
-
-    // Omitido para modo debug: No mostrar diálogo de inicio de sesión automáticamente
-    private val _showLoginDialog = MutableStateFlow(false)
-    val showLoginDialog: StateFlow<Boolean> = _showLoginDialog.asStateFlow()
-
     init {
         checkBackendHealth()
         initializeDefaultServersAndTweaks()
-        if (prefs.isLoggedIn && !prefs.token.isNullOrEmpty()) {
-            loadServersAndTweaks()
-        }
+        prefs.clearAuth()
+        loadServersAndTweaks()
     }
 
     fun checkBackendHealth() {
@@ -94,71 +81,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private val _isDeviceLimitReached = MutableStateFlow(false)
-    val isDeviceLimitReached: StateFlow<Boolean> = _isDeviceLimitReached.asStateFlow()
-
-    fun login(user: String, pass: String, remember: Boolean, forceDisconnect: Boolean = false) {
-        viewModelScope.launch {
-            _isLoggingIn.value = true
-            _loginError.value = null
-            _isDeviceLimitReached.value = false
-
-            val context = getApplication<Application>()
-            val hwid = DeviceUtils.getDeviceHardwareId(context)
-
-            try {
-                val response = withContext(Dispatchers.IO) {
-                    RetrofitClient.api.login(
-                        LoginRequest(
-                            username = user.trim(),
-                            password = pass.trim(),
-                            deviceId = hwid,
-                            platform = "android",
-                            forceDisconnect = forceDisconnect
-                        )
-                    )
-                }
-
-                if (response.isSuccessful && response.body()?.success == true) {
-                    val loginData = response.body()!!.data!!
-                    prefs.token = loginData.token
-                    prefs.sessionId = loginData.sessionId
-                    prefs.username = user
-                    prefs.isLoggedIn = true
-                    _isDeviceLimitReached.value = false
-                    if (remember) {
-                        prefs.password = pass
-                        prefs.rememberCredentials = true
-                    } else {
-                        prefs.password = ""
-                        prefs.rememberCredentials = false
-                    }
-
-                    _showLoginDialog.value = false
-                    TunnelLogManager.log("Sesión iniciada exitosamente: $user", isHighlight = true)
-                    TunnelLogManager.log("ID de arrendamiento asignado: ${loginData.sessionId.take(8)}...")
-
-                    loadServersAndTweaks()
-                } else {
-                    if (response.code() == 409) {
-                        _isDeviceLimitReached.value = true
-                        _loginError.value = "Ya tienes una sesión abierta en otro dispositivo. Cierra la sesión en tu otro teléfono para poder ingresar."
-                        TunnelLogManager.log("Acceso denegado: cuenta activa en otro dispositivo.", isError = true)
-                    } else {
-                        val err = response.body()?.message ?: "Credenciales inválidas"
-                        _loginError.value = err
-                        TunnelLogManager.log("Error de autenticación: $err", isError = true)
-                    }
-                }
-            } catch (e: Exception) {
-                _loginError.value = "Error al conectar con Render backend: ${e.localizedMessage}"
-                TunnelLogManager.log("Fallo de red en login: ${e.message}", isError = true)
-            } finally {
-                _isLoggingIn.value = false
-            }
-        }
-    }
-
     fun logout() {
         viewModelScope.launch {
             val token = prefs.token
@@ -171,18 +93,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
             prefs.clearAuth()
             stopTunnel()
-            // Modo Debug: No mostrar diálogo de login al cerrar sesión
-            // _showLoginDialog.value = true
             TunnelLogManager.log("Sesión cerrada.", isHighlight = true)
         }
-    }
-
-    fun dismissLoginDialog() {
-        _showLoginDialog.value = false
-    }
-
-    fun openLoginDialog() {
-        _showLoginDialog.value = true
     }
 
     fun selectServer(server: ServerNodeDto) {
@@ -273,16 +185,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun startTunnel(context: Context) {
-        // Modo Debug: Inicio de sesión temporalmente deshabilitado para pruebas inmediatas
-        // Cuando se reactive la autenticación comercial, se descomentará el bloque inferior:
-        /*
-        if (!prefs.isLoggedIn || prefs.token.isNullOrEmpty()) {
-            _showLoginDialog.value = true
-            TunnelLogManager.log("Por favor inicia sesión antes de conectar", isError = true)
-            return
-        }
-        */
-
         val server = _selectedServer.value ?: _servers.value.firstOrNull() ?: ServerNodeDto(
             id = 1,
             nodeId = "gw-aws-ohio-01",
@@ -351,7 +253,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun loadServersAndTweaks() {
         viewModelScope.launch {
-            val token = prefs.token ?: return@launch
+            val token = prefs.token.orEmpty()
             try {
                 val serversRes = withContext(Dispatchers.IO) {
                     RetrofitClient.api.getServers("Bearer $token")

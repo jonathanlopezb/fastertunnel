@@ -87,6 +87,9 @@ class PreferenceManager(context: Context) {
         prefs.edit()
             .remove(KEY_TOKEN)
             .remove(KEY_SESSION_ID)
+            .remove(KEY_USERNAME)
+            .remove(KEY_PASSWORD)
+            .remove(KEY_REMEMBER_CREDENTIALS)
             .putBoolean(KEY_IS_LOGGED_IN, false)
             .apply()
     }

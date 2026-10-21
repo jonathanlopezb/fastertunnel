@@ -28,6 +28,8 @@ func Setup(
 		// ── Endpoints públicos ──────────────────────────────────────────────
 		v1.GET("/health", handlers.HealthCheck)
 		v1.POST("/auth/login", authHandler.Login)
+		v1.GET("/servers", serverHandler.GetServers)
+		v1.GET("/tweaks", tweakHandler.GetTweaks)
 
 		// ── Endpoints protegidos (requieren JWT válido y sesión activa) ─────
 		auth := v1.Group("/")
@@ -36,10 +38,7 @@ func Setup(
 			auth.POST("/auth/logout", authHandler.Logout)
 			auth.POST("/auth/heartbeat", authHandler.Heartbeat)
 
-			auth.GET("/servers", serverHandler.GetServers)
 			auth.GET("/servers/ping", serverHandler.GetServersPing)
-
-			auth.GET("/tweaks", tweakHandler.GetTweaks)
 		}
 	}
 }

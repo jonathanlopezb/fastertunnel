@@ -12,11 +12,6 @@ interface FasterTunnelApi {
     @GET("/api/v1/health")
     suspend fun getHealth(): Response<ApiResponse<HealthData>>
 
-    @POST("/api/v1/auth/login")
-    suspend fun login(
-        @Body request: LoginRequest
-    ): Response<ApiResponse<LoginData>>
-
     @POST("/api/v1/auth/logout")
     suspend fun logout(
         @Header("Authorization") token: String

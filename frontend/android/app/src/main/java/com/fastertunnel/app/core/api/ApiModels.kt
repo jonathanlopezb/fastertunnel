@@ -17,29 +17,6 @@ data class HealthData(
     @SerializedName("service") val service: String
 )
 
-// Login Request / Response
-data class LoginRequest(
-    @SerializedName("username") val username: String,
-    @SerializedName("password") val password: String,
-    @SerializedName("device_id") val deviceId: String,
-    @SerializedName("platform") val platform: String = "android",
-    @SerializedName("force_disconnect") val forceDisconnect: Boolean = false
-)
-
-data class LoginData(
-    @SerializedName("token") val token: String,
-    @SerializedName("session_id") val sessionId: String,
-    @SerializedName("expires_in") val expiresIn: Int,
-    @SerializedName("expires_at") val expiresAt: String,
-    @SerializedName("user") val user: UserDto
-)
-
-data class UserDto(
-    @SerializedName("id") val id: Long,
-    @SerializedName("username") val username: String,
-    @SerializedName("is_admin") val isAdmin: Boolean
-)
-
 // Heartbeat Request / Response
 data class HeartbeatRequest(
     @SerializedName("session_id") val sessionId: String,

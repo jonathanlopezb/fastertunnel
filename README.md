@@ -105,6 +105,8 @@ go run cmd/server/main.go
 |--------|------|-------------|
 | `GET` | `/api/v1/health` | Health check - verifica que el servidor está online |
 | `POST` | `/api/v1/auth/login` | Inicio de sesión (1 sesión activa por usuario) |
+| `GET` | `/api/v1/servers` | Lista de nodos gateway disponibles |
+| `GET` | `/api/v1/tweaks` | Configuraciones de payload por operadora |
 
 ### Protegidos (requieren `Authorization: Bearer <token>`)
 
@@ -112,9 +114,7 @@ go run cmd/server/main.go
 |--------|------|-------------|
 | `POST` | `/api/v1/auth/logout` | Cerrar sesión |
 | `POST` | `/api/v1/auth/heartbeat` | Mantener sesión viva (cada 15s) |
-| `GET` | `/api/v1/servers` | Lista de nodos gateway disponibles |
 | `GET` | `/api/v1/servers/ping` | Latencia estimada por servidor |
-| `GET` | `/api/v1/tweaks` | Configuraciones de payload por operadora |
 
 ## Despliegue en Render
 
