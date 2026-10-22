@@ -1,6 +1,7 @@
 package com.fastertunnel.app
 
 import android.app.Activity
+import android.app.NotificationManager
 import android.content.Intent
 import android.net.VpnService
 import android.os.Bundle
@@ -9,9 +10,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import com.fastertunnel.app.core.vpn.TunnelLogManager
-import com.fastertunnel.app.core.vpn.TunnelNotificationManager
-import com.fastertunnel.app.core.vpn.TunnelStatus
-import com.fastertunnel.app.ui.screens.MainTunnelScreen
+import com.fastertunnel.app.ui.screens.TunnelHomeScreen
 import com.fastertunnel.app.ui.theme.FasterTunnelTheme
 import com.fastertunnel.app.ui.viewmodel.MainViewModel
 
@@ -25,47 +24,48 @@ class MainActivity : ComponentActivity() {
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             viewModel.toggleTunnel(this)
+        } else {
+            TunnelLogManager.log("Permiso VPN denegado por el usuario.", isError = true)
+        }
+    }
+
+    private val profilePicker = registerForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            try {
+                contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+                viewModel.setWireGuardProfile(uri)
+            } catch (e: SecurityException) {
+                TunnelLogManager.logException("No se pudo guardar el acceso al perfil", e)
+            }
         }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Mostrar notificación persistente fija estilo Hamara Tunnel
-        if (TunnelLogManager.status.value != TunnelStatus.CONNECTED) {
-            TunnelNotificationManager.showDisconnected(this)
-        }
-
-        if (intent?.getBooleanExtra("auto_connect", false) == true) {
-            requestVpnPermissionAndConnect()
-        }
+        getSystemService(NotificationManager::class.java).cancel(1001)
 
         setContent {
             FasterTunnelTheme {
-                MainTunnelScreen(
+                TunnelHomeScreen(
                     viewModel = viewModel,
-                    onRequestVpnPermission = { requestVpnPermissionAndConnect() }
+                    onRequestVpnPermission = { requestVpnPermissionAndConnect() },
+                    onImportProfile = { profilePicker.launch(arrayOf("*/*")) }
                 )
             }
         }
     }
 
-    override fun onResume() {
-        super.onResume()
-        if (TunnelLogManager.status.value != TunnelStatus.CONNECTED) {
-            TunnelNotificationManager.showDisconnected(this)
-        }
-    }
-
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        setIntent(intent)
-        if (intent.getBooleanExtra("auto_connect", false)) {
-            requestVpnPermissionAndConnect()
-        }
-    }
-
     private fun requestVpnPermissionAndConnect() {
+        if (viewModel.wireGuardProfileUri.value.isNullOrBlank()) {
+            profilePicker.launch(arrayOf("*/*"))
+            return
+        }
         val vpnIntent = VpnService.prepare(this)
         if (vpnIntent != null) {
             vpnPermissionLauncher.launch(vpnIntent)

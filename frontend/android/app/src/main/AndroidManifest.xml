@@ -5,14 +5,10 @@
     <!-- Permisos esenciales para cliente de túnel VPN -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:name=".FasterTunnelApp"
-        android:allowBackup="true"
+        android:allowBackup="false"
         android:icon="@drawable/logo"
         android:label="@string/app_name"
         android:roundIcon="@drawable/logo"
@@ -31,30 +27,6 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-
-        <!-- Receptor de acciones rápidas de la notificación (Conectar / Desconectar) -->
-        <receiver
-            android:name=".core.vpn.VpnActionReceiver"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="com.fastertunnel.app.ACTION_NOTIFICATION_CONNECT" />
-                <action android:name="com.fastertunnel.app.ACTION_NOTIFICATION_DISCONNECT" />
-            </intent-filter>
-        </receiver>
-
-        <!-- Servicio de VPN Foreground persistente -->
-        <service
-            android:name=".core.vpn.FasterVpnService"
-            android:permission="android.permission.BIND_VPN_SERVICE"
-            android:foregroundServiceType="specialUse"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="android.net.VpnService" />
-            </intent-filter>
-            <property
-                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Virtual private network connection tunneling with custom UDP/SSH injector" />
-        </service>
 
     </application>
 

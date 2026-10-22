@@ -1,46 +1,29 @@
 # fasterTunnel Android
 
-> **Módulo de aplicación móvil** — Cliente tipo HTTP Injector para Android.
-> Esta carpeta contendrá el proyecto Android (Kotlin + Jetpack Compose + JNI C++/Rust).
+Cliente Android de VPN con conexión WireGuard, interfaz en Jetpack Compose y sin inicio de sesión.
 
-## Estado: En Desarrollo
+## Requisitos de conexión
 
-El módulo de frontend se construirá en la siguiente fase del proyecto, una vez que el backend esté estable y desplegado.
+- Android 8.0 (API 26) o superior.
+- Un servidor WireGuard activo y accesible por UDP.
+- Un perfil de cliente `.conf` válido, con `AllowedIPs = 0.0.0.0/0`.
+- El endpoint del perfil debe ser una IP pública o un nombre DNS que resuelva directamente al servidor. Los registros de WireGuard no pueden pasar por el proxy HTTP de Cloudflare.
 
-## Stack Planificado
+La app importa el archivo `.conf` desde el almacenamiento del dispositivo y conserva el permiso de lectura de ese archivo. No copia su clave privada a las preferencias ni la imprime en los registros. El botón de conexión solicita el permiso VPN de Android, activa el túnel y comprueba acceso HTTPS real antes de mostrar el estado conectado.
 
-- **Lenguaje**: Kotlin + Coroutines + Flow
-- **UI**: Jetpack Compose + Material 3 (tema oscuro / cyberpunk)
-- **Arquitectura**: Clean Architecture + MVI + Hilt DI
-- **VPN**: Android `VpnService` API (interfaz TUN virtual)
-- **Motor Nativo**: C++ o Rust compilado con Android NDK (arm64-v8a, armeabi-v7a)
-- **JNI Bridge**: `FasterTunnelJni.kt` ↔ `libfastertunnel.so`
-- **Red**: Retrofit + OkHttp para API REST
-- **Storage**: Room DB + EncryptedSharedPreferences (Jetpack Security)
+## Compilar localmente
 
-## Módulos Planificados
+Se requiere JDK 17, Android SDK Platform 35 y Gradle 8.10.2:
 
-```
-frontend/
-└── android/
-    ├── app/
-    │   ├── src/main/
-    │   │   ├── java/com/fastertunnel/
-    │   │   │   ├── core/vpn/          # VpnService, TunnelManager
-    │   │   │   ├── core/security/     # Keystore, Ed25519 Verifier
-    │   │   │   ├── core/jni/          # JNI bridge a motor nativo
-    │   │   │   ├── data/api/          # Retrofit clients
-    │   │   │   ├── data/local/        # Room DB
-    │   │   │   ├── domain/usecase/    # Configuración pública, StartTunnel
-    │   │   │   └── presentation/      # Compose Screens + ViewModels
-    │   │   └── cpp/                   # Motor C++/Rust nativo
-    │   └── build.gradle.kts
-    └── build.gradle.kts
+```powershell
+cd frontend\android
+gradle --no-daemon assembleDebug
 ```
 
-## Pantallas Principales
+El APK de depuración queda en `app\build\outputs\apk\debug\app-debug.apk`.
 
-1. **MainTunnelScreen** — Inicio directo, botón de conexión ON/OFF, estado del túnel y latencia RTT
-2. **ServerSelectSheet** — Lista de nodos por país y selector de protocolo
-3. **TweakSelectSheet** — Configuraciones de payload por operadora/carrier
-4. **SettingsScreen** — Kill Switch, Split Tunneling, DNS anti-leak y tema de la app
+## Descargar desde GitHub Actions
+
+Cada `push` a `main`, pull request hacia `main` o ejecución manual del workflow **Build fasterTunnel Android APK** compila el APK y publica el artifact `fastertunnel-debug-apk` por 14 días. En GitHub, abre **Actions**, selecciona la ejecución exitosa y descarga el artifact.
+
+Los perfiles WireGuard y las claves privadas no deben añadirse al repositorio ni al artifact de compilación.

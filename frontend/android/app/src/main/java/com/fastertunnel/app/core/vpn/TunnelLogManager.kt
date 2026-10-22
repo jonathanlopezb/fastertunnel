@@ -30,6 +30,20 @@ object TunnelLogManager {
         _logs.value = (_logs.value + entry).takeLast(200)
     }
 
+    fun logException(context: String, exception: Throwable) {
+        var cause: Throwable? = exception
+        repeat(5) { depth ->
+            val current = cause ?: return
+            val location = current.stackTrace.firstOrNull()?.let {
+                " (${it.className.substringAfterLast('.')}.${it.methodName}:${it.lineNumber})"
+            }.orEmpty()
+            val prefix = if (depth == 0) context else "Causa"
+            val detail = current.message?.takeIf { it.isNotBlank() } ?: "sin detalle"
+            log("$prefix: ${current.javaClass.simpleName}: $detail$location", isError = true)
+            cause = current.cause
+        }
+    }
+
     fun updateStatus(newStatus: TunnelStatus) {
         _status.value = newStatus
     }

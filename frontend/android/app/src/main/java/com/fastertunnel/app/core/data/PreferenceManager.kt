@@ -25,6 +25,7 @@ class PreferenceManager(context: Context) {
         private const val KEY_SELECTED_TWEAK_ID = "key_selected_tweak_id"
         private const val KEY_CUSTOM_SNI = "key_custom_sni"
         private const val KEY_IS_LOGGED_IN = "key_is_logged_in"
+        private const val KEY_WIREGUARD_PROFILE_URI = "key_wireguard_profile_uri"
     }
 
     var selectedServerHost: String
@@ -82,6 +83,10 @@ class PreferenceManager(context: Context) {
     var isLoggedIn: Boolean
         get() = prefs.getBoolean(KEY_IS_LOGGED_IN, false)
         set(value) = prefs.edit().putBoolean(KEY_IS_LOGGED_IN, value).apply()
+
+    var wireGuardProfileUri: String?
+        get() = prefs.getString(KEY_WIREGUARD_PROFILE_URI, null)
+        set(value) = prefs.edit().putString(KEY_WIREGUARD_PROFILE_URI, value).apply()
 
     fun clearAuth() {
         prefs.edit()
