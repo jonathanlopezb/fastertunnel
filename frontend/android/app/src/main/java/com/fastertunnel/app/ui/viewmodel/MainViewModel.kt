@@ -5,9 +5,11 @@ import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.fastertunnel.app.core.api.ApiResponse
 import com.fastertunnel.app.core.data.PreferenceManager
 import com.fastertunnel.app.core.api.CreateWireGuardProfileRequest
 import com.fastertunnel.app.core.api.RetrofitClient
+import com.fastertunnel.app.core.api.WireGuardProfileData
 import com.fastertunnel.app.core.vpn.TunnelLogManager
 import com.fastertunnel.app.core.vpn.TunnelStatus
 import com.fastertunnel.app.core.vpn.TunnelTrafficStats
@@ -26,6 +28,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import retrofit2.Response
 import java.io.ByteArrayInputStream
 import java.io.IOException
 import java.io.File
@@ -203,7 +206,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             key
         }
 
-        val response = RetrofitClient.api.createWireGuardProfile(
+        val response = requestWireGuardProfileWithRetry(
             CreateWireGuardProfileRequest(KeyPair(privateKey).publicKey.toBase64())
         )
         if (!response.isSuccessful) {
@@ -262,6 +265,36 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             isHighlight = true
         )
         return uri
+    }
+
+    private suspend fun requestWireGuardProfileWithRetry(
+        request: CreateWireGuardProfileRequest
+    ): Response<ApiResponse<WireGuardProfileData>> {
+        for (attempt in 1..PROFILE_REQUEST_ATTEMPTS) {
+            try {
+                val response = RetrofitClient.api.createWireGuardProfile(request)
+                if (response.isSuccessful ||
+                    response.code() in 400..499 ||
+                    attempt == PROFILE_REQUEST_ATTEMPTS
+                ) {
+                    return response
+                }
+                TunnelLogManager.log(
+                    "La API respondió HTTP ${response.code()}; reintentando la solicitud de perfil."
+                )
+                response.errorBody()?.close()
+            } catch (e: IOException) {
+                if (attempt == PROFILE_REQUEST_ATTEMPTS) {
+                    throw e
+                }
+                TunnelLogManager.log(
+                    "Se interrumpió la conexión con la API; reintento $attempt de " +
+                        "${PROFILE_REQUEST_ATTEMPTS - 1} en ${PROFILE_RETRY_DELAYS_SECONDS[attempt - 1]} s."
+                )
+            }
+            delay(PROFILE_RETRY_DELAYS_SECONDS[attempt - 1] * 1000L)
+        }
+        throw IOException("No se pudo obtener el perfil WireGuard.")
     }
 
     private fun isValidIpv4Address(value: String): Boolean {
@@ -331,5 +364,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         const val HTTP_NO_CONTENT = 204
         const val MAX_PROFILE_SIZE_BYTES = 64 * 1024
         const val PROBE_TIMEOUT_MS = 8000
+        const val PROFILE_REQUEST_ATTEMPTS = 4
+        val PROFILE_RETRY_DELAYS_SECONDS = longArrayOf(5, 15, 30)
     }
 }
