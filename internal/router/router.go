@@ -13,11 +13,13 @@ func Setup(
 	authService *services.AuthService,
 	configService *services.ConfigService,
 	jwtSecret string,
+	wireGuardAgentToken string,
 ) {
 	// Inicializar handlers.
 	authHandler := handlers.NewAuthHandler(authService)
 	serverHandler := handlers.NewServerHandler(configService)
 	tweakHandler := handlers.NewTweakHandler(configService)
+	wireGuardHandler := handlers.NewWireGuardHandler(wireGuardAgentToken)
 
 	// Middleware global.
 	r.Use(middleware.CORS())
@@ -30,6 +32,7 @@ func Setup(
 		v1.POST("/auth/login", authHandler.Login)
 		v1.GET("/servers", serverHandler.GetServers)
 		v1.GET("/tweaks", tweakHandler.GetTweaks)
+		v1.POST("/wireguard/profile", wireGuardHandler.CreateProfile)
 
 		// ── Endpoints protegidos (requieren JWT válido y sesión activa) ─────
 		auth := v1.Group("/")
@@ -40,5 +43,9 @@ func Setup(
 
 			auth.GET("/servers/ping", serverHandler.GetServersPing)
 		}
+
+		agent := v1.Group("/wireguard")
+		agent.Use(wireGuardHandler.AgentAuth())
+		agent.GET("/peers", wireGuardHandler.GetPeers)
 	}
 }

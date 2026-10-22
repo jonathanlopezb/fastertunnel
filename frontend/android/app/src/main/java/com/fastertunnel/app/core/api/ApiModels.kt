@@ -28,6 +28,21 @@ data class HeartbeatData(
     @SerializedName("valid") val valid: Boolean
 )
 
+data class CreateWireGuardProfileRequest(
+    @SerializedName("public_key") val publicKey: String
+)
+
+data class WireGuardProfileData(
+    @SerializedName("node_id") val nodeId: String,
+    @SerializedName("name") val name: String,
+    @SerializedName("address") val address: String,
+    @SerializedName("dns") val dns: String,
+    @SerializedName("endpoint") val endpoint: String,
+    @SerializedName("server_public_key") val serverPublicKey: String,
+    @SerializedName("allowed_ips") val allowedIPs: List<String>,
+    @SerializedName("persistent_keepalive") val persistentKeepalive: Int
+)
+
 // Servidores Gateway
 data class ServersData(
     @SerializedName("servers") val servers: List<ServerNodeDto>,

@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"os"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jonathanlopezb/fastertunnel/internal/config"
@@ -56,7 +57,7 @@ func main() {
 	r.Use(gin.Recovery())
 
 	// ── Registrar rutas ───────────────────────────────────────────────────
-	router.Setup(r, authService, configService, cfg.JWTSecret)
+	router.Setup(r, authService, configService, cfg.JWTSecret, os.Getenv("WIREGUARD_AGENT_TOKEN"))
 
 	// ── Iniciar servidor ──────────────────────────────────────────────────
 	addr := fmt.Sprintf(":%s", cfg.Port)

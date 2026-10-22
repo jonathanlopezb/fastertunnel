@@ -5,11 +5,12 @@ Cliente Android de VPN con conexión WireGuard, interfaz en Jetpack Compose y si
 ## Requisitos de conexión
 
 - Android 8.0 (API 26) o superior.
-- Un servidor WireGuard activo y accesible por UDP.
-- Un perfil de cliente `.conf` válido, con `AllowedIPs = 0.0.0.0/0`.
-- El endpoint del perfil debe ser una IP pública o un nombre DNS que resuelva directamente al servidor. Los registros de WireGuard no pueden pasar por el proxy HTTP de Cloudflare.
+- Un servidor WireGuard activo y accesible por UDP 51820.
+- El backend y el sincronizador WireGuard del gateway configurados como se describe en `../README.md`.
 
-La app importa el archivo `.conf` desde el almacenamiento del dispositivo y conserva el permiso de lectura de ese archivo. No copia su clave privada a las preferencias ni la imprime en los registros. El botón de conexión solicita el permiso VPN de Android, activa el túnel y comprueba acceso HTTPS real antes de mostrar el estado conectado.
+Al tocar conectar por primera vez, Android solicita el permiso VPN y la app pide un perfil al backend. La clave privada WireGuard se genera y permanece en el almacenamiento privado de la app; solo se envía la clave pública para registrar el peer. Los perfiles `.conf` también se pueden importar manualmente. El estado conectado solo aparece después de verificar el túnel y una salida HTTPS real.
+
+El endpoint WireGuard debe ser una IP pública o un nombre DNS directo al servidor. El proxy HTTP de Cloudflare no transporta el UDP de WireGuard; para usar un nombre DNS hay que configurarlo como DNS-only.
 
 ## Compilar localmente
 

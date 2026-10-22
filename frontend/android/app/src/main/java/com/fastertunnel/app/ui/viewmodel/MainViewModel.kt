@@ -6,6 +6,8 @@ import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.fastertunnel.app.core.data.PreferenceManager
+import com.fastertunnel.app.core.api.CreateWireGuardProfileRequest
+import com.fastertunnel.app.core.api.RetrofitClient
 import com.fastertunnel.app.core.vpn.TunnelLogManager
 import com.fastertunnel.app.core.vpn.TunnelStatus
 import com.fastertunnel.app.core.vpn.TunnelTrafficStats
@@ -13,6 +15,9 @@ import com.wireguard.android.backend.GoBackend
 import com.wireguard.android.backend.Tunnel
 import com.wireguard.config.BadConfigException
 import com.wireguard.config.Config
+import com.wireguard.crypto.Key
+import com.wireguard.crypto.KeyFormatException
+import com.wireguard.crypto.KeyPair
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -23,6 +28,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayInputStream
 import java.io.IOException
+import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 
@@ -34,7 +40,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val trafficStats = TunnelLogManager.stats
     val logs = TunnelLogManager.logs
 
-    private val _wireGuardProfileUri = MutableStateFlow(prefs.wireGuardProfileUri)
+    private val generatedProfileFile = File(application.noBackupFilesDir, "wireguard/wg0.conf")
+    private val _wireGuardProfileUri = MutableStateFlow(
+        prefs.wireGuardProfileUri
+            ?: generatedProfileFile.takeIf { it.isFile }?.let { Uri.fromFile(it).toString() }
+    )
     val wireGuardProfileUri = _wireGuardProfileUri.asStateFlow()
 
     private val wireGuardBackend by lazy { GoBackend(application) }
@@ -74,25 +84,32 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun startTunnel(context: Context) {
-        val profileUri = _wireGuardProfileUri.value?.let(Uri::parse)
-        if (profileUri == null) {
-            TunnelLogManager.log("Importa un perfil WireGuard antes de conectar.", isError = true)
-            TunnelLogManager.updateStatus(TunnelStatus.ERROR)
-            return
-        }
-
         TunnelLogManager.updateStatus(TunnelStatus.CONNECTING)
-        TunnelLogManager.log("Leyendo el perfil WireGuard local...", isHighlight = true)
+        TunnelLogManager.log("Preparando un perfil WireGuard seguro...", isHighlight = true)
         connectionJob = viewModelScope.launch {
             var backendAttempted = false
             try {
+                val selectedProfile = _wireGuardProfileUri.value?.let(Uri::parse)
+                val profileUri = if (
+                    selectedProfile == null || selectedProfile == Uri.fromFile(generatedProfileFile)
+                ) {
+                    TunnelLogManager.log("Actualizando el perfil WireGuard remoto...")
+                    withContext(Dispatchers.IO) { provisionWireGuardProfile() }
+                } else {
+                    selectedProfile
+                }
                 val profileBytes = withContext(Dispatchers.IO) {
-                    context.contentResolver.openInputStream(profileUri)?.use { it.readBytes() }
-                        ?: throw IOException("No se pudo abrir el perfil seleccionado.")
+                    if (profileUri.scheme == "file") {
+                        File(requireNotNull(profileUri.path)).readBytes()
+                    } else {
+                        context.contentResolver.openInputStream(profileUri)?.use { it.readBytes() }
+                            ?: throw IOException("No se pudo abrir el perfil seleccionado.")
+                    }
                 }
                 if (profileBytes.isEmpty() || profileBytes.size > MAX_PROFILE_SIZE_BYTES) {
                     throw IllegalArgumentException("El perfil está vacío o supera el tamaño permitido.")
                 }
+
                 if (!profileHasDefaultRoute(profileBytes.toString(Charsets.UTF_8))) {
                     throw IllegalArgumentException(
                         "El perfil debe incluir AllowedIPs = 0.0.0.0/0 para enrutar todo el tráfico."
@@ -159,6 +176,98 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 TunnelLogManager.logException("No se pudo detener WireGuard", e)
                 TunnelLogManager.updateStatus(TunnelStatus.ERROR)
             }
+        }
+    }
+
+    private suspend fun provisionWireGuardProfile(): Uri {
+        val privateKeyFile = File(generatedProfileFile.parentFile, "private.key")
+        val privateKey = if (privateKeyFile.isFile) {
+            Key.fromBase64(privateKeyFile.readText(Charsets.US_ASCII).trim())
+        } else {
+            val key = KeyPair().privateKey
+            privateKeyFile.parentFile?.mkdirs()
+            val temporaryKeyFile = File(privateKeyFile.parentFile, "private.key.tmp")
+            temporaryKeyFile.writeText(key.toBase64(), Charsets.US_ASCII)
+            temporaryKeyFile.setReadable(false, false)
+            temporaryKeyFile.setReadable(true, true)
+            temporaryKeyFile.setWritable(false, false)
+            temporaryKeyFile.setWritable(true, true)
+            if (!temporaryKeyFile.renameTo(privateKeyFile)) {
+                temporaryKeyFile.delete()
+                throw IOException("No se pudo guardar la clave privada WireGuard.")
+            }
+            privateKeyFile.setReadable(false, false)
+            privateKeyFile.setReadable(true, true)
+            privateKeyFile.setWritable(false, false)
+            privateKeyFile.setWritable(true, true)
+            key
+        }
+
+        val response = RetrofitClient.api.createWireGuardProfile(
+            CreateWireGuardProfileRequest(KeyPair(privateKey).publicKey.toBase64())
+        )
+        if (!response.isSuccessful) {
+            throw IOException("El servidor rechazó la solicitud de perfil (HTTP ${response.code()}).")
+        }
+        val profile = response.body()?.data
+            ?: throw IOException("El servidor respondió sin los datos del perfil WireGuard.")
+        val endpointPort = profile.endpoint.substringAfterLast(':', "").toIntOrNull()
+        val serverPublicKey = try {
+            Key.fromBase64(profile.serverPublicKey).toBase64()
+        } catch (e: KeyFormatException) {
+            throw IOException("El servidor entregó una clave pública WireGuard inválida.", e)
+        }
+        if (profile.allowedIPs != listOf("0.0.0.0/0") ||
+            !profile.address.matches(
+                Regex("^10\\.66\\.0\\.(?:1[0-9]|[2-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-4])/32$")
+            ) ||
+            !isValidIpv4Address(profile.dns) ||
+            !profile.endpoint.matches(Regex("^(?:[A-Za-z0-9.-]+|\\[[0-9A-Fa-f:]+]):[0-9]{1,5}$")) ||
+            endpointPort == null ||
+            endpointPort !in 1..65535 ||
+            profile.persistentKeepalive !in 0..120
+        ) {
+            throw IOException("El perfil WireGuard recibido está incompleto o no enruta todo el tráfico.")
+        }
+
+        val config = buildString {
+            appendLine("[Interface]")
+            appendLine("PrivateKey = ${privateKey.toBase64()}")
+            appendLine("Address = ${profile.address}")
+            appendLine("DNS = ${profile.dns}")
+            appendLine()
+            appendLine("[Peer]")
+            appendLine("PublicKey = $serverPublicKey")
+            appendLine("Endpoint = ${profile.endpoint}")
+            appendLine("AllowedIPs = ${profile.allowedIPs.joinToString(", ")}")
+            appendLine("PersistentKeepalive = ${profile.persistentKeepalive}")
+        }
+
+        generatedProfileFile.parentFile?.mkdirs()
+        val temporaryFile = File(generatedProfileFile.parentFile, "wg0.conf.tmp")
+        temporaryFile.writeText(config, Charsets.UTF_8)
+        temporaryFile.setReadable(false, false)
+        temporaryFile.setReadable(true, true)
+        temporaryFile.setWritable(false, false)
+        temporaryFile.setWritable(true, true)
+        if (!temporaryFile.renameTo(generatedProfileFile)) {
+            temporaryFile.delete()
+            throw IOException("No se pudo guardar el perfil WireGuard en el almacenamiento privado.")
+        }
+        val uri = Uri.fromFile(generatedProfileFile)
+        prefs.wireGuardProfileUri = uri.toString()
+        _wireGuardProfileUri.value = uri.toString()
+        TunnelLogManager.log(
+            "Perfil WireGuard recibido; la clave privada permanece en este dispositivo.",
+            isHighlight = true
+        )
+        return uri
+    }
+
+    private fun isValidIpv4Address(value: String): Boolean {
+        val octets = value.split(".")
+        return octets.size == 4 && octets.all { octet ->
+            octet.toIntOrNull()?.let { it in 0..255 } == true
         }
     }
 

@@ -62,10 +62,6 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun requestVpnPermissionAndConnect() {
-        if (viewModel.wireGuardProfileUri.value.isNullOrBlank()) {
-            profilePicker.launch(arrayOf("*/*"))
-            return
-        }
         val vpnIntent = VpnService.prepare(this)
         if (vpnIntent != null) {
             vpnPermissionLauncher.launch(vpnIntent)

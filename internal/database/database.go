@@ -51,6 +51,7 @@ func Migrate(db *gorm.DB) error {
 		&models.Session{},
 		&models.ServerNode{},
 		&models.Tweak{},
+		&models.WireGuardPeer{},
 	)
 	if err != nil {
 		return fmt.Errorf("auto-migration failed: %w", err)

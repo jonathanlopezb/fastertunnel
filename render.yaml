@@ -21,6 +21,12 @@ services:
         fromDatabase:
           name: fastertunnel-db
           property: connectionString
+      - key: WIREGUARD_ENDPOINT
+        value: 3.142.187.253:51820
+      - key: WIREGUARD_SERVER_PUBLIC_KEY
+        value: xxVNhcOpa6Xty5MWtuI/iLDpSs16F5/tjOn7jA0jN2I=
+      - key: WIREGUARD_AGENT_TOKEN
+        sync: false
     healthCheckPath: /api/v1/health
 
 databases:

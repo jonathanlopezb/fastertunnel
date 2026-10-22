@@ -188,13 +188,13 @@ fun TunnelHomeScreen(
                 Spacer(Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = if (hasProfile) "Perfil WireGuard listo" else "Configura tu conexión",
+                        text = if (hasProfile) "Perfil WireGuard listo" else "Conexión automática",
                         color = TextWhite,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.SemiBold
                     )
                     Text(
-                        text = if (hasProfile) "Perfil local seleccionado" else "Importa tu archivo .conf",
+                        text = if (hasProfile) "Perfil seguro seleccionado" else "El perfil se configura al conectar",
                         color = TextMuted,
                         fontSize = 12.sp
                     )
@@ -274,7 +274,7 @@ fun TunnelHomeScreen(
                 TunnelStatus.CONNECTED -> "Conexión cifrada y verificada"
                 TunnelStatus.CONNECTING, TunnelStatus.AUTHENTICATING -> "Estableciendo túnel seguro…"
                 TunnelStatus.ERROR -> "Revisa el registro para ver la causa"
-                else -> if (hasProfile) "Toca para iniciar tu conexión" else "Importa un perfil para comenzar"
+                else -> if (hasProfile) "Toca para iniciar tu conexión" else "Toca para obtener el perfil y conectar"
             },
             color = TextMuted,
             fontSize = 13.sp

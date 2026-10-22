@@ -28,6 +28,11 @@ interface FasterTunnelApi {
         @Header("Authorization") token: String
     ): Response<ApiResponse<ServersData>>
 
+    @POST("/api/v1/wireguard/profile")
+    suspend fun createWireGuardProfile(
+        @Body request: CreateWireGuardProfileRequest
+    ): Response<ApiResponse<WireGuardProfileData>>
+
     @GET("/api/v1/servers/ping")
     suspend fun getServersPing(
         @Header("Authorization") token: String
